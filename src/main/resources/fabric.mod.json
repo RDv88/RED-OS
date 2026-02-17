@@ -8,6 +8,8 @@
 		"./RD_v88.sh"
 	],
 	"contact": {
+		"sources": "https://github.com/RDv88/RED-OS",
+		"issues": "https://github.com/RDv88/RED-OS/issues"
 	},
 	"license": "All Rights Reserved",
 	"icon": "assets/redos/icon.png",
