@@ -1,9 +1,9 @@
-# 🔴 RED-OS: Advanced Technology Ecosystem
+# RED-OS: Advanced Technology Ecosystem
 
 ![Version](https://img.shields.io/badge/Version-0.1.12--BETA-red)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
 
-**RED-OS** is a comprehensive technological suite for Minecraft, designed to automate logistics, enhance security, and master spatial energy. No longer just a collection of machines, it is a unified operating system for your world.
+** 🔴 RED-OS** is a comprehensive technological suite for Minecraft, designed to automate logistics, enhance security, and master spatial energy. No longer just a collection of machines, it is a unified operating system for your world.
 
 ## 🛰 How it Works: Discovery & Progression
 In Survival mode, RED-OS utilizes an advancement-based unlock system. The hardware is locked behind encrypted firmware that only initializes when you master fundamental world laws.
