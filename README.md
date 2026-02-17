@@ -1,4 +1,4 @@
-# RED-OS: Advanced Technology Ecosystem
+# 🔴 RED-OS: Advanced Technology Ecosystem
 
 ![Version](https://img.shields.io/badge/Version-0.1.12--BETA-red)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
