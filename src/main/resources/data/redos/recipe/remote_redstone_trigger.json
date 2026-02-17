@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone_torch",
+    "B": "minecraft:stone_button"
+  },
+  "pattern": [
+    " I ",
+    "IBI",
+    " R "
+  ],
+  "result": {
+    "id": "redos:remote_redstone_trigger",
+    "count": 1
+  }
+}

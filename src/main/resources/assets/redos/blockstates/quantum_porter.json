@@ -1,0 +1,23 @@
+{
+  "variants": {
+    "active=false,facing=north,half=lower": { "model": "redos:block/quantum_porter_base", "y": 270 },
+    "active=false,facing=south,half=lower": { "model": "redos:block/quantum_porter_base", "y": 90 },
+    "active=false,facing=west,half=lower":  { "model": "redos:block/quantum_porter_base", "y": 180 },
+    "active=false,facing=east,half=lower":  { "model": "redos:block/quantum_porter_base", "y": 0 },
+    
+    "active=false,facing=north,half=upper": { "model": "redos:block/quantum_porter_screen", "y": 270 },
+    "active=false,facing=south,half=upper": { "model": "redos:block/quantum_porter_screen", "y": 90 },
+    "active=false,facing=west,half=upper":  { "model": "redos:block/quantum_porter_screen", "y": 180 },
+    "active=false,facing=east,half=upper":  { "model": "redos:block/quantum_porter_screen", "y": 0 },
+
+    "active=true,facing=north,half=lower": { "model": "redos:block/quantum_porter_base", "y": 270 },
+    "active=true,facing=south,half=lower": { "model": "redos:block/quantum_porter_base", "y": 90 },
+    "active=true,facing=west,half=lower":  { "model": "redos:block/quantum_porter_base", "y": 180 },
+    "active=true,facing=east,half=lower":  { "model": "redos:block/quantum_porter_base", "y": 0 },
+    
+    "active=true,facing=north,half=upper": { "model": "redos:block/quantum_porter_screen_active", "y": 270 },
+    "active=true,facing=south,half=upper": { "model": "redos:block/quantum_porter_screen_active", "y": 90 },
+    "active=true,facing=west,half=upper":  { "model": "redos:block/quantum_porter_screen_active", "y": 180 },
+    "active=true,facing=east,half=upper":  { "model": "redos:block/quantum_porter_screen_active", "y": 0 }
+  }
+}

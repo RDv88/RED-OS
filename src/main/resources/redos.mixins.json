@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "package": "net.rdv88.redos.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ItemInHandRendererMixin",
+    "PlayerModelMixin",
+    "TitleScreenMixin",
+    "ItemBlockRenderTypesMixin",
+    "DisconnectedScreenMixin",
+    "ClientHandshakePacketListenerImplMixin",
+    "MinecraftClientMixin"
+  ],
+  "mixins": [
+    "PlayerMixin",
+    "TargetingConditionsMixin",
+    "PlayerAdvancementsMixin",
+    "ServerPlayerMixin",
+    "ServerLoginHandshakeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

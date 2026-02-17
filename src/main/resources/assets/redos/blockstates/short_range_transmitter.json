@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "redos:block/short_range_transmitter" }
+  }
+}

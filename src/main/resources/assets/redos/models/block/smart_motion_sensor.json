@@ -1,0 +1,37 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "redos:block/transmitter_iron_base",
+    "sensor_glass": "minecraft:block/lime_stained_glass",
+    "sensor_internal": "redos:block/sensor_front",
+    "particle": "redos:block/transmitter_iron_base"
+  },
+  "elements": [
+    {
+      "name": "base_plate",
+      "from": [ 2, 0, 2 ],
+      "to": [ 14, 2, 14 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "name": "sensor_body",
+      "from": [ 4, 2, 4 ],
+      "to": [ 12, 7, 12 ],
+      "faces": {
+        "up":    { "texture": "#sensor_glass" },
+        "down":  { "texture": "#sensor_internal" },
+        "north": { "texture": "#sensor_glass" },
+        "south": { "texture": "#sensor_glass" },
+        "west":  { "texture": "#sensor_glass" },
+        "east":  { "texture": "#sensor_glass" }
+      }
+    }
+  ]
+}

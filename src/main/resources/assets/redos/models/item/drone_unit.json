@@ -1,0 +1,54 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "all": "minecraft:block/polished_blackstone",
+    "particle": "minecraft:block/polished_blackstone"
+  },
+  "elements": [
+    {
+      "name": "body",
+      "from": [ 5, 7, 5 ],
+      "to": [ 11, 9, 11 ],
+      "faces": {
+        "north": { "uv": [ 5, 7, 11, 9 ], "texture": "#all" },
+        "south": { "uv": [ 5, 7, 11, 9 ], "texture": "#all" },
+        "west":  { "uv": [ 5, 7, 11, 9 ], "texture": "#all" },
+        "east":  { "uv": [ 5, 7, 11, 9 ], "texture": "#all" },
+        "up":    { "uv": [ 5, 5, 11, 11 ], "texture": "#all" },
+        "down":  { "uv": [ 5, 5, 11, 11 ], "texture": "#all" }
+      }
+    },
+    {
+      "name": "arm_x",
+      "from": [ 3, 7.5, 7.5 ],
+      "to": [ 13, 8.5, 8.5 ],
+      "faces": {
+        "north": { "uv": [ 3, 7, 13, 8 ], "texture": "#all" },
+        "south": { "uv": [ 3, 7, 13, 8 ], "texture": "#all" },
+        "up":    { "uv": [ 3, 7, 13, 8 ], "texture": "#all" },
+        "down":  { "uv": [ 3, 7, 13, 8 ], "texture": "#all" },
+        "west":  { "uv": [ 7, 7, 8, 8 ], "texture": "#all" },
+        "east":  { "uv": [ 7, 7, 8, 8 ], "texture": "#all" }
+      }
+    },
+    {
+      "name": "arm_z",
+      "from": [ 7.5, 7.5, 3 ],
+      "to": [ 8.5, 8.5, 13 ],
+      "faces": {
+        "north": { "uv": [ 7, 3, 8, 13 ], "texture": "#all" },
+        "south": { "uv": [ 7, 3, 8, 13 ], "texture": "#all" },
+        "up":    { "uv": [ 7, 3, 8, 13 ], "texture": "#all" },
+        "down":  { "uv": [ 7, 3, 8, 13 ], "texture": "#all" },
+        "west":  { "uv": [ 7, 3, 8, 13 ], "texture": "#all" },
+        "east":  { "uv": [ 7, 3, 8, 13 ], "texture": "#all" }
+      }
+    }
+  ],
+  "display": {
+    "gui": { "rotation": [ 30, 225, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 1.6, 1.6, 1.6 ] },
+    "ground": { "rotation": [ 0, 0, 0 ], "translation": [ 0, 3, 0 ], "scale": [ 1.5, 1.5, 1.5 ] },
+    "thirdperson_hand": { "rotation": [ 75, 45, 0 ], "translation": [ 0, 2.5, 0 ], "scale": [ 0.8, 0.8, 0.8 ] },
+    "firstperson_hand": { "rotation": [ 0, 225, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 0.8, 0.8, 0.8 ] }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "item.redos.handheld_device": "RED-OS Handheld Device",
+  "item.redos.plasma_pulse_disintegrator": "RED-OS Plasma Pulse Disintegrator",
+  "item.redos.drone_unit": "RED-OS Drone Unit",
+  "item.redos.wireless_ip_camera": "RED-OS IP Camera",
+  "item.redos.smart_motion_sensor": "RED-OS Motion Sensor",
+  "item.redos.short_range_transmitter": "RED-OS SR Transmitter",
+  "item.redos.long_range_transmitter": "RED-OS LR Transmitter",
+  "item.redos.remote_redstone_trigger": "RED-OS Remote Trigger",
+  "item.redos.quantum_porter": "RED-OS Quantum Porter",
+  "item.redos.io_tag": "RED-OS IO Tag",
+  "item.redos.drone_station": "RED-OS Logistics Hub",
+  
+  "itemGroup.redos.group": "RED-OS",
+
+  "block.redos.wireless_ip_camera": "RED-OS IP Camera",
+  "block.redos.smart_motion_sensor": "RED-OS Motion Sensor",
+  "block.redos.short_range_transmitter": "RED-OS SR Transmitter",
+  "block.redos.long_range_transmitter": "RED-OS LR Transmitter",
+  "block.redos.remote_redstone_trigger": "RED-OS Remote Trigger",
+  "block.redos.quantum_porter": "RED-OS Quantum Porter",
+  "block.redos.io_tag": "RED-OS IO Tag",
+  "block.redos.drone_station": "RED-OS Logistics Hub",
+
+  "advancements.redos.unlock_tech.title": "RED-OS Core Initialized",
+  "advancements.redos.unlock_tech.description": "You have mastered time and energy. The RED-OS firmware is now active.",
+  "advancements.redos.hightech.title": "Protocol 02: Discovery",
+  "advancements.redos.hightech.description": "The power of the stars is now in your hands."
+}

@@ -1,0 +1,31 @@
+{
+  "textures": {
+    "skin": "redos:block/handheld_3d_skin",
+    "screen": "minecraft:block/cyan_stained_glass",
+    "particle": "redos:block/handheld_3d_skin"
+  },
+  "elements": [
+    {
+      "name": "ceiling_plate",
+      "from": [ 1, 14, 1 ],
+      "to": [ 15, 16, 15 ],
+      "faces": {
+        "up":    { "texture": "#skin", "uv": [ 1, 1, 15, 15 ] },
+        "down":  { "texture": "#skin", "uv": [ 1, 1, 15, 15 ] },
+        "north": { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "south": { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "west":  { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "east":  { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] }
+      }
+    },
+    {
+      "name": "hologram_screen",
+      "from": [ 4, 2, 7.75 ],
+      "to": [ 12, 8, 8.25 ],
+      "faces": {
+        "north": { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] },
+        "south": { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] }
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "minecraft:block/polished_blackstone",
+    "detail_p": "minecraft:block/amethyst_block",
+    "screen_bg": "minecraft:block/black_concrete",
+    "particle": "minecraft:block/polished_blackstone"
+  },
+  "elements": [
+    {
+      "name": "base_block",
+      "from": [ 0, 0, 0 ],
+      "to": [ 16, 8, 16 ],
+      "faces": {
+        "up":    { "texture": "#base", "uv": [ 0, 0, 16, 16 ] },
+        "down":  { "texture": "#base", "uv": [ 0, 0, 16, 16 ] },
+        "north": { "texture": "#base", "uv": [ 0, 0, 16, 8 ] },
+        "south": { "texture": "#base", "uv": [ 0, 0, 16, 8 ] },
+        "west":  { "texture": "#base", "uv": [ 0, 0, 16, 8 ] },
+        "east":  { "texture": "#base", "uv": [ 0, 0, 16, 8 ] }
+      }
+    },
+    {
+      "name": "slanted_support",
+      "from": [ 1, 8, 4 ],
+      "to": [ 15, 12, 15 ],
+      "faces": {
+        "up":    { "texture": "#base", "uv": [ 1, 4, 15, 15 ] },
+        "north": { "texture": "#base", "uv": [ 1, 8, 15, 12 ] },
+        "south": { "texture": "#base", "uv": [ 1, 8, 15, 12 ] },
+        "west":  { "texture": "#base", "uv": [ 4, 8, 15, 12 ] },
+        "east":  { "texture": "#base", "uv": [ 4, 8, 15, 12 ] }
+      }
+    },
+    {
+      "name": "command_screen_bg",
+      "from": [ 2, 13, 4.5 ],
+      "to": [ 14, 19, 4.51 ],
+      "rotation": { "angle": 22.5, "axis": "x", "origin": [ 8, 13, 4.5 ] },
+      "faces": {
+        "north": { "texture": "#screen_bg", "uv": [ 2, 13, 14, 19 ] },
+        "south": { "texture": "#screen_bg", "uv": [ 2, 13, 14, 19 ] }
+      }
+    },
+    { "name": "led1", "from": [ 1, 8.1, 1 ], "to": [ 2, 8.2, 2 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 1, 1, 2, 2 ] } } },
+    { "name": "led2", "from": [ 14, 8.1, 1 ], "to": [ 15, 8.2, 2 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 14, 1, 15, 2 ] } } },
+    { "name": "led3", "from": [ 1, 8.1, 14 ], "to": [ 2, 8.2, 15 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 1, 14, 2, 15 ] } } },
+    { "name": "led4", "from": [ 14, 8.1, 14 ], "to": [ 15, 8.2, 15 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 14, 14, 15, 15 ] } } }
+  ]
+}

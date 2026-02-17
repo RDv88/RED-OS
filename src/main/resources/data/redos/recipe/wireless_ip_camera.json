@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "GSG",
+    "ICI",
+    " R "
+  ],
+  "key": {
+    "G": "minecraft:glass_pane",
+    "S": "minecraft:spyglass",
+    "I": "minecraft:iron_ingot",
+    "C": "minecraft:clock",
+    "R": "minecraft:redstone_torch"
+  },
+  "result": {
+    "id": "redos:wireless_ip_camera",
+    "count": 1
+  }
+}

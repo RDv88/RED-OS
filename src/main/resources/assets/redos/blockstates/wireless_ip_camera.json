@@ -1,0 +1,49 @@
+{
+  "variants": {
+    "face=floor,facing=north": {
+      "model": "redos:block/wireless_ip_camera_floor"
+    },
+    "face=floor,facing=east": {
+      "model": "redos:block/wireless_ip_camera_floor",
+      "y": 90
+    },
+    "face=floor,facing=south": {
+      "model": "redos:block/wireless_ip_camera_floor",
+      "y": 180
+    },
+    "face=floor,facing=west": {
+      "model": "redos:block/wireless_ip_camera_floor",
+      "y": 270
+    },
+    "face=ceiling,facing=north": {
+      "model": "redos:block/wireless_ip_camera_ceiling"
+    },
+    "face=ceiling,facing=east": {
+      "model": "redos:block/wireless_ip_camera_ceiling",
+      "y": 90
+    },
+    "face=ceiling,facing=south": {
+      "model": "redos:block/wireless_ip_camera_ceiling",
+      "y": 180
+    },
+    "face=ceiling,facing=west": {
+      "model": "redos:block/wireless_ip_camera_ceiling",
+      "y": 270
+    },
+    "face=wall,facing=north": {
+      "model": "redos:block/wireless_ip_camera_wall"
+    },
+    "face=wall,facing=east": {
+      "model": "redos:block/wireless_ip_camera_wall",
+      "y": 90
+    },
+    "face=wall,facing=south": {
+      "model": "redos:block/wireless_ip_camera_wall",
+      "y": 180
+    },
+    "face=wall,facing=west": {
+      "model": "redos:block/wireless_ip_camera_wall",
+      "y": 270
+    }
+  }
+}

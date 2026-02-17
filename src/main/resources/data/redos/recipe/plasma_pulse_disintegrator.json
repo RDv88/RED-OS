@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "OEO",
+    "OCO",
+    "RXR"
+  ],
+  "key": {
+    "O": "minecraft:obsidian",
+    "E": "minecraft:echo_shard",
+    "C": "minecraft:clock",
+    "R": "minecraft:redstone_torch",
+    "X": "minecraft:crying_obsidian"
+  },
+  "result": {
+    "id": "redos:plasma_pulse_disintegrator",
+    "count": 1
+  }
+}

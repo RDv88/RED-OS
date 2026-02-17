@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "redos:item/wireless_ip_camera"
+  }
+}

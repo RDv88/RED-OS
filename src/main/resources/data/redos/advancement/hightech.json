@@ -1,0 +1,63 @@
+{
+  "parent": "redos:main",
+  "display": {
+    "icon": {
+      "id": "redos:plasma_pulse_disintegrator"
+    },
+    "title": {
+      "translate": "advancements.redos.hightech.title"
+    },
+    "description": {
+      "translate": "advancements.redos.hightech.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_tech": {
+      "trigger": "minecraft:tick",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "type_specific": {
+                "type": "player",
+                "advancements": {
+                  "redos:main": true
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "has_echo_shard": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:echo_shard"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_tech"
+    ],
+    [
+      "has_echo_shard"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "redos:plasma_pulse_disintegrator",
+      "redos:quantum_porter"
+    ]
+  }
+}

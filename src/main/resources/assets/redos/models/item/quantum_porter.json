@@ -1,0 +1,48 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "minecraft:block/black_concrete",
+    "detail_p": "minecraft:block/purple_stained_glass",
+    "detail_g": "minecraft:block/lime_stained_glass",
+    "screen": "minecraft:block/lime_stained_glass",
+    "portal": "minecraft:block/nether_portal",
+    "particle": "minecraft:block/black_concrete"
+  },
+  "display": {
+    "thirdperson_righthand": { "rotation": [ 75, 45, 0 ], "translation": [ 0, 2.5, 0 ], "scale": [ 0.375, 0.375, 0.375 ] },
+    "thirdperson_lefthand":  { "rotation": [ 75, 45, 0 ], "translation": [ 0, 2.5, 0 ], "scale": [ 0.375, 0.375, 0.375 ] },
+    "firstperson_righthand": { "rotation": [ 0, 45, 0 ], "translation": [ 0, 4.0, 0 ], "scale": [ 0.4, 0.4, 0.4 ] },
+    "firstperson_lefthand":  { "rotation": [ 0, 225, 0 ], "translation": [ 0, 4.0, 0 ], "scale": [ 0.4, 0.4, 0.4 ] },
+    "ground": { "translation": [ 0, 3, 0 ], "scale": [ 0.25, 0.25, 0.25 ] },
+    "gui": { "rotation": [ 30, 225, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 0.625, 0.625, 0.625 ] },
+    "head": { "translation": [ 0, -10, 0 ], "scale": [ 1, 1, 1 ] },
+    "fixed": { "scale": [ 0.5, 0.5, 0.5 ] }
+  },
+  "elements": [
+    {
+      "name": "base_plateau",
+      "from": [ 1, 0, 1 ],
+      "to": [ 15, 2, 15 ],
+      "faces": {
+        "up":    { "texture": "#base", "uv": [ 1, 1, 15, 15 ] },
+        "down":  { "texture": "#base", "uv": [ 1, 1, 15, 15 ] },
+        "north": { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "south": { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "west":  { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "east":  { "texture": "#base", "uv": [ 1, 0, 15, 2 ] }
+      }
+    },
+    { "name": "detail_p1", "from": [ 2, 2, 2 ], "to": [ 4, 2.1, 4 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 2, 2, 4, 4 ] } } },
+    { "name": "detail_p2", "from": [ 12, 2, 2 ], "to": [ 14, 2.1, 4 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 12, 2, 14, 4 ] } } },
+    { "name": "core_g", "from": [ 7, 2, 7 ], "to": [ 9, 2.5, 9 ], "faces": { "up": { "texture": "#detail_g", "uv": [ 7, 7, 9, 9 ] } } },
+    {
+      "name": "hologram_screen",
+      "from": [ 7.95, 5, 2 ],
+      "to": [ 8.05, 11, 14 ],
+      "faces": {
+        "west":  { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] },
+        "east":  { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] }
+      }
+    }
+  ]
+}

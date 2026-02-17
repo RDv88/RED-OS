@@ -1,0 +1,42 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "minecraft:block/black_concrete",
+    "detail_p": "minecraft:block/purple_stained_glass",
+    "detail_g": "minecraft:block/lime_stained_glass",
+    "particle": "minecraft:block/black_concrete"
+  },
+  "elements": [
+    {
+      "name": "base_plateau",
+      "from": [ 1, 0, 1 ],
+      "to": [ 15, 2, 15 ],
+      "faces": {
+        "up":    { "texture": "#base", "uv": [ 1, 1, 15, 15 ] },
+        "down":  { "texture": "#base", "uv": [ 1, 1, 15, 15 ] },
+        "north": { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "south": { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "west":  { "texture": "#base", "uv": [ 1, 0, 15, 2 ] },
+        "east":  { "texture": "#base", "uv": [ 1, 0, 15, 2 ] }
+      }
+    },
+    { "name": "corner_p1", "from": [ 2, 2, 2 ], "to": [ 4, 2.1, 4 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 2, 2, 4, 4 ] } } },
+    { "name": "corner_p2", "from": [ 12, 2, 2 ], "to": [ 14, 2.1, 4 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 12, 2, 14, 4 ] } } },
+    { "name": "corner_p3", "from": [ 2, 2, 12 ], "to": [ 4, 2.1, 14 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 2, 12, 4, 14 ] } } },
+    { "name": "corner_p4", "from": [ 12, 2, 12 ], "to": [ 14, 2.1, 14 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 12, 12, 14, 14 ] } } },
+    {
+      "name": "power_core_green",
+      "from": [ 7, 2, 7 ],
+      "to": [ 9, 2.5, 9 ],
+      "faces": {
+        "up":    { "texture": "#detail_g", "uv": [ 7, 7, 9, 9 ] },
+        "north": { "texture": "#detail_g", "uv": [ 7, 0, 9, 1 ] },
+        "south": { "texture": "#detail_g", "uv": [ 7, 0, 9, 1 ] },
+        "west":  { "texture": "#detail_g", "uv": [ 7, 0, 9, 1 ] },
+        "east":  { "texture": "#detail_g", "uv": [ 7, 0, 9, 1 ] }
+      }
+    },
+    { "name": "line_p1", "from": [ 7.5, 2, 2 ], "to": [ 8.5, 2.05, 7 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 7, 2, 9, 7 ] } } },
+    { "name": "line_p2", "from": [ 7.5, 2, 9 ], "to": [ 8.5, 2.05, 14 ], "faces": { "up": { "texture": "#detail_p", "uv": [ 7, 9, 9, 14 ] } } }
+  ]
+}

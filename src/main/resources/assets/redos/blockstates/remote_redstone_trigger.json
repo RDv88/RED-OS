@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "redos:block/remote_redstone_trigger" }
+  }
+}

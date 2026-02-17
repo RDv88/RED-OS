@@ -1,0 +1,30 @@
+{
+  "textures": {
+    "skin": "redos:block/handheld_3d_skin",
+    "glow": "redos:block/red_glow",
+    "particle": "redos:block/handheld_3d_skin"
+  },
+  "elements": [
+    {
+      "name": "floor_plate",
+      "from": [ 1, 0, 1 ],
+      "to": [ 15, 2, 15 ],
+      "faces": {
+        "up":    { "texture": "#skin", "uv": [ 1, 1, 15, 15 ] },
+        "down":  { "texture": "#skin", "uv": [ 1, 1, 15, 15 ] },
+        "north": { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "south": { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "west":  { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] },
+        "east":  { "texture": "#skin", "uv": [ 1, 0, 15, 2 ] }
+      }
+    },
+    {
+      "name": "floor_glow",
+      "from": [ 4, 2.05, 4 ],
+      "to": [ 12, 2.05, 12 ],
+      "faces": {
+        "up": { "texture": "#glow", "uv": [ 4, 4, 12, 12 ] }
+      }
+    }
+  ]
+}

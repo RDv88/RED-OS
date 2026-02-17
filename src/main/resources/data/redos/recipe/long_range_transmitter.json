@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    " L ",
+    " C ",
+    "III"
+  ],
+  "key": {
+    "L": "minecraft:lightning_rod",
+    "C": "minecraft:copper_ingot",
+    "I": "minecraft:iron_ingot"
+  },
+  "result": {
+    "id": "redos:long_range_transmitter",
+    "count": 1
+  }
+}

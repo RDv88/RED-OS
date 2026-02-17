@@ -1,0 +1,83 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "redos:block/transmitter_iron_base",
+    "top_glass": "minecraft:block/red_stained_glass",
+    "particle": "redos:block/transmitter_iron_base"
+  },
+  "elements": [
+    {
+      "from": [ 2, 0, 2 ],
+      "to": [ 4, 2, 4 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "from": [ 12, 0, 2 ],
+      "to": [ 14, 2, 4 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "from": [ 2, 0, 12 ],
+      "to": [ 4, 2, 14 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "from": [ 12, 0, 12 ],
+      "to": [ 14, 2, 14 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "from": [ 2, 2, 2 ],
+      "to": [ 14, 4, 14 ],
+      "faces": {
+        "up":    { "texture": "#base" },
+        "down":  { "texture": "#base" },
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "west":  { "texture": "#base" },
+        "east":  { "texture": "#base" }
+      }
+    },
+    {
+      "name": "glass_top",
+      "from": [ 4, 4, 4 ],
+      "to": [ 12, 8, 12 ],
+      "faces": {
+        "up":    { "texture": "#top_glass" },
+        "down":  { "texture": "#top_glass" },
+        "north": { "texture": "#top_glass" },
+        "south": { "texture": "#top_glass" },
+        "west":  { "texture": "#top_glass" },
+        "east":  { "texture": "#top_glass" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "parent": "minecraft:block/tinted_glass",
+  "textures": {
+    "screen": "minecraft:block/lime_stained_glass",
+    "particle": "minecraft:block/lime_stained_glass"
+  },
+  "elements": [
+    {
+      "name": "hologram_glass",
+      "from": [ 3.95, 5, 2 ],
+      "to": [ 4.05, 11, 14 ],
+      "faces": {
+        "west":  { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] },
+        "east":  { "texture": "#screen", "uv": [ 0, 0, 16, 16 ] }
+      }
+    }
+  ]
+}

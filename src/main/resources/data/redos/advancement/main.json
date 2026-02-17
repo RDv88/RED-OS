@@ -1,0 +1,50 @@
+{
+  "display": {
+    "icon": {
+      "id": "redos:handheld_device"
+    },
+    "title": {
+      "text": "Redos"
+    },
+    "description": {
+      "text": "You have mastered time and energy."
+    },
+    "background": "redos:block/metal_side",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_tech": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:clock"
+          },
+          {
+            "items": "minecraft:redstone_torch"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_tech"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "redos:handheld_device",
+      "redos:short_range_transmitter",
+      "redos:long_range_transmitter",
+      "redos:wireless_ip_camera",
+      "redos:smart_motion_sensor",
+                  "redos:remote_redstone_trigger"
+                ]
+            
+        }
+      }
+      
