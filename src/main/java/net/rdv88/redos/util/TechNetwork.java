@@ -249,7 +249,7 @@ public class TechNetwork {
         }
 
         for (Map.Entry<UUID, String> entry : ACTIVE_HANDHELD_USERS.entrySet()) {
-            UUID playerId = entry.getKey(); if ((serverTicks + (playerId.hashCode() & 0xFFFF)) % 50 != 0) continue;
+            UUID playerId = entry.getKey(); if ((serverTicks + (playerId.hashCode() & 0xFFFF)) % 10 != 0) continue;
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
             if (player != null) { var data = calculateVisibleDevices(player, entry.getValue()); net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data)); }
         }
@@ -282,7 +282,19 @@ public class TechNetwork {
                 boolean dv = (boolean)node.settings.getOrDefault("detect_villagers", false);
                 int range = ((Number)node.settings.getOrDefault("range", 10)).intValue();
                 int hold = ((Number)node.settings.getOrDefault("hold_time", 20)).intValue();
-                visible.add(new SyncHandheldDataPayload.DeviceEntry(node.pos, node.networkId, node.customName, node.type.name(), finalSignal, connectionMode, dp, dm, da, dv, range, hold));
+                
+                // NEW: Extract inventory data for IO Tags
+                int itemCount = 0;
+                int freeSpace = 0;
+                if (node.type == NodeType.IO_TAG) {
+                    Object countObj = node.settings.get("item_count");
+                    if (countObj instanceof Number num) itemCount = num.intValue();
+                    
+                    Object freeObj = node.settings.get("free_space");
+                    if (freeObj instanceof Number num) freeSpace = num.intValue();
+                }
+
+                visible.add(new SyncHandheldDataPayload.DeviceEntry(node.pos, node.networkId, node.customName, node.type.name(), finalSignal, connectionMode, dp, dm, da, dv, range, hold, itemCount, freeSpace));
             }
         }
         return visible;
@@ -333,6 +345,15 @@ public class TechNetwork {
     public static List<BlockPos> findMeshPath(Level level, BlockPos start, BlockPos end, String networkId) {
         if (networkId == null || networkId.isEmpty()) return Collections.emptyList();
         
+        // 1. OPTIMIZATION: Check if we can transmit DIRECTLY first (Limit: 20 blocks)
+        if (start.distSqr(end) <= 400) { 
+            if (isConnected(level, start, networkId) && isConnected(level, end, networkId)) {
+                List<BlockPos> directPath = new ArrayList<>();
+                directPath.add(end);
+                return directPath;
+            }
+        }
+
         Map<BlockPos, NetworkNode> registry = getRegistry(level);
         Map<BlockPos, BlockPos> parentMap = new HashMap<>();
         Queue<BlockPos> queue = new LinkedList<>();

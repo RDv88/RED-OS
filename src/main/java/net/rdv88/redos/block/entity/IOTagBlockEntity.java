@@ -33,12 +33,7 @@ public class IOTagBlockEntity extends BlockEntity {
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, IOTagBlockEntity blockEntity) {
-        if (level.isClientSide()) return;
-
-        // Fallback sync every 5 seconds (100 ticks)
-        if (level.getGameTime() % 100 == 0) {
-            blockEntity.updateInventoryStats();
-        }
+        // No periodic ticking needed, we use event-driven updates via Mixin for efficiency
     }
 
     /**

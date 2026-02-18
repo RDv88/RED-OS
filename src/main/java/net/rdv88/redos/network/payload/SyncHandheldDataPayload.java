@@ -24,21 +24,42 @@ public record SyncHandheldDataPayload(List<DeviceEntry> devices) implements Cust
 
     public record DeviceEntry(BlockPos pos, String id, String name, String type, int signalStrength, String connectionMode, 
                               boolean detectPlayers, boolean detectMobs, boolean detectAnimals, boolean detectVillagers,
-                              int range, int holdTime) {
-        public static final StreamCodec<RegistryFriendlyByteBuf, DeviceEntry> CODEC = StreamCodec.composite(
-                BlockPos.STREAM_CODEC, DeviceEntry::pos,
-                ByteBufCodecs.STRING_UTF8, DeviceEntry::id,
-                ByteBufCodecs.STRING_UTF8, DeviceEntry::name,
-                ByteBufCodecs.STRING_UTF8, DeviceEntry::type,
-                ByteBufCodecs.VAR_INT, DeviceEntry::signalStrength,
-                ByteBufCodecs.STRING_UTF8, DeviceEntry::connectionMode,
-                ByteBufCodecs.BOOL, DeviceEntry::detectPlayers,
-                ByteBufCodecs.BOOL, DeviceEntry::detectMobs,
-                ByteBufCodecs.BOOL, DeviceEntry::detectAnimals,
-                ByteBufCodecs.BOOL, DeviceEntry::detectVillagers,
-                ByteBufCodecs.VAR_INT, DeviceEntry::range,
-                ByteBufCodecs.VAR_INT, DeviceEntry::holdTime,
-                DeviceEntry::new
+                              int range, int holdTime, int itemCount, int freeSpace) {
+        
+        // Split into two sub-codecs to stay under the 12-field limit of StreamCodec.composite
+        public static final StreamCodec<RegistryFriendlyByteBuf, DeviceEntry> CODEC = StreamCodec.of(
+            (buf, entry) -> {
+                BlockPos.STREAM_CODEC.encode(buf, entry.pos);
+                ByteBufCodecs.STRING_UTF8.encode(buf, entry.id);
+                ByteBufCodecs.STRING_UTF8.encode(buf, entry.name);
+                ByteBufCodecs.STRING_UTF8.encode(buf, entry.type);
+                ByteBufCodecs.VAR_INT.encode(buf, entry.signalStrength);
+                ByteBufCodecs.STRING_UTF8.encode(buf, entry.connectionMode);
+                ByteBufCodecs.BOOL.encode(buf, entry.detectPlayers);
+                ByteBufCodecs.BOOL.encode(buf, entry.detectMobs);
+                ByteBufCodecs.BOOL.encode(buf, entry.detectAnimals);
+                ByteBufCodecs.BOOL.encode(buf, entry.detectVillagers);
+                ByteBufCodecs.VAR_INT.encode(buf, entry.range);
+                ByteBufCodecs.VAR_INT.encode(buf, entry.holdTime);
+                ByteBufCodecs.VAR_INT.encode(buf, entry.itemCount);
+                ByteBufCodecs.VAR_INT.encode(buf, entry.freeSpace);
+            },
+            buf -> new DeviceEntry(
+                BlockPos.STREAM_CODEC.decode(buf),
+                ByteBufCodecs.STRING_UTF8.decode(buf),
+                ByteBufCodecs.STRING_UTF8.decode(buf),
+                ByteBufCodecs.STRING_UTF8.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf),
+                ByteBufCodecs.STRING_UTF8.decode(buf),
+                ByteBufCodecs.BOOL.decode(buf),
+                ByteBufCodecs.BOOL.decode(buf),
+                ByteBufCodecs.BOOL.decode(buf),
+                ByteBufCodecs.BOOL.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf),
+                ByteBufCodecs.VAR_INT.decode(buf)
+            )
         );
     }
 }

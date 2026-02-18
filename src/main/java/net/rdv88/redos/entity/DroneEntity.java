@@ -22,6 +22,7 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import net.rdv88.redos.block.entity.DroneStationBlockEntity;
+import net.rdv88.redos.block.entity.IOTagBlockEntity;
 import net.rdv88.redos.item.ModItems;
 import net.rdv88.redos.util.TechNetwork;
 
@@ -63,7 +64,6 @@ public class DroneEntity extends Mob {
         builder.define(CARRIED_ITEM, ItemStack.EMPTY);
     }
 
-    // TRAVEL OVERRIDE FOR SMOOTH MOVEMENT
     @Override
     public void travel(Vec3 movementInput) {
         if (this.isEffectiveAi() || this.level().isClientSide()) {
@@ -139,7 +139,6 @@ public class DroneEntity extends Mob {
                     if (toSource.isEmpty()) startPanic("Lost Source Link");
                     else { setHighway(toSource); state = State.GOING_TO_SOURCE; }
                 } else {
-                    // EFFICIENCY FIX: Ask hub for next task before returning
                     BlockEntity be = level().getBlockEntity(hubPos);
                     if (be instanceof DroneStationBlockEntity hub) {
                         DroneStationBlockEntity.LogisticsTask nextTask = hub.requestNextTask(getUUID(), taskIndex);
@@ -293,18 +292,29 @@ public class DroneEntity extends Mob {
         this.setYRot((float) Math.toDegrees(Math.atan2(-motion.x, motion.z)));
     }
 
+    private void notifyNearbyTags(BlockPos center) {
+        for (Direction dir : Direction.values()) {
+            BlockEntity neighbor = level().getBlockEntity(center.relative(dir));
+            if (neighbor instanceof IOTagBlockEntity tag) {
+                tag.updateInventoryStats();
+            }
+        }
+    }
+
     private void pickupItem() {
         if (sourcePos == null) return;
         for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
                 for (int z = -1; z <= 1; z++) {
-                    BlockEntity be = level().getBlockEntity(sourcePos.offset(x, y, z));
+                    BlockPos p = sourcePos.offset(x, y, z);
+                    BlockEntity be = level().getBlockEntity(p);
                     if (be instanceof Container container) {
                         for (int i = 0; i < container.getContainerSize(); i++) {
                             ItemStack stack = container.getItem(i);
                             if (!stack.isEmpty()) {
                                 setCarriedItem(stack.split(stack.getMaxStackSize()));
                                 container.setChanged();
+                                notifyNearbyTags(p); // FORCE LIVE UPDATE
                                 return;
                             }
                         }
@@ -319,7 +329,8 @@ public class DroneEntity extends Mob {
         for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
                 for (int z = -1; z <= 1; z++) {
-                    BlockEntity be = level().getBlockEntity(targetPos.offset(x, y, z));
+                    BlockPos p = targetPos.offset(x, y, z);
+                    BlockEntity be = level().getBlockEntity(p);
                     if (be instanceof Container container) {
                         ItemStack carried = getCarriedItem();
                         for (int i = 0; i < container.getContainerSize(); i++) {
@@ -328,12 +339,18 @@ public class DroneEntity extends Mob {
                                 container.setItem(i, carried);
                                 setCarriedItem(ItemStack.EMPTY);
                                 container.setChanged();
+                                notifyNearbyTags(p); // FORCE LIVE UPDATE
                                 return;
                             } else if (ItemStack.isSameItemSameComponents(slotStack, carried) && slotStack.getCount() < slotStack.getMaxStackSize()) {
                                 int canAdd = Math.min(carried.getCount(), slotStack.getMaxStackSize() - slotStack.getCount());
                                 slotStack.grow(canAdd);
                                 carried.shrink(canAdd);
-                                if (carried.isEmpty()) { setCarriedItem(ItemStack.EMPTY); container.setChanged(); return; }
+                                if (carried.isEmpty()) { 
+                                    setCarriedItem(ItemStack.EMPTY); 
+                                    container.setChanged(); 
+                                    notifyNearbyTags(p); // FORCE LIVE UPDATE
+                                    return; 
+                                }
                             }
                         }
                     }

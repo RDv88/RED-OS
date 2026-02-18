@@ -86,7 +86,7 @@ public class HandheldAppNWID implements HandheldApp {
             boolean isDefault = p.id().equals("00000");
 
             adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 50, 18, 
-                new SyncHandheldDataPayload.DeviceEntry(BlockPos.ZERO, p.id(), p.name(), "PROFILE", 100, isActive ? "Enabled" : "Disabled", false, false, false, false, 10, 20), b -> {
+                new SyncHandheldDataPayload.DeviceEntry(BlockPos.ZERO, p.id(), p.name(), "PROFILE", 100, isActive ? "Enabled" : "Disabled", false, false, false, false, 10, 20, 0, 0), b -> {
                     if (activeIds.contains(p.id())) activeIds.remove(p.id()); else activeIds.add(p.id());
                     HandheldScreen.updateNetworkIds(); HandheldScreen.refreshApp();
                 }));
