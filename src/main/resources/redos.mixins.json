@@ -12,6 +12,7 @@
     "MinecraftClientMixin"
   ],
   "mixins": [
+    "ContainerChangeMixin",
     "PlayerMixin",
     "TargetingConditionsMixin",
     "PlayerAdvancementsMixin",

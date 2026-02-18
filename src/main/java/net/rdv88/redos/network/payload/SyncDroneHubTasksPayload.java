@@ -13,13 +13,18 @@ import java.util.List;
 public record SyncDroneHubTasksPayload(BlockPos pos, List<TaskData> tasks) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<SyncDroneHubTasksPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(Redos.MOD_ID, "sync_drone_hub_tasks"));
 
-    public record TaskData(BlockPos src, BlockPos dst, int prio, boolean assigned, boolean enabled) {
+    public record TaskData(BlockPos src, BlockPos dst, int prio, boolean assigned, boolean enabled, 
+                          int srcCount, int srcFree, int dstCount, int dstFree) {
         public static final StreamCodec<RegistryFriendlyByteBuf, TaskData> CODEC = StreamCodec.composite(
                 BlockPos.STREAM_CODEC, TaskData::src,
                 BlockPos.STREAM_CODEC, TaskData::dst,
                 ByteBufCodecs.VAR_INT, TaskData::prio,
                 ByteBufCodecs.BOOL, TaskData::assigned,
                 ByteBufCodecs.BOOL, TaskData::enabled,
+                ByteBufCodecs.VAR_INT, TaskData::srcCount,
+                ByteBufCodecs.VAR_INT, TaskData::srcFree,
+                ByteBufCodecs.VAR_INT, TaskData::dstCount,
+                ByteBufCodecs.VAR_INT, TaskData::dstFree,
                 TaskData::new
         );
     }

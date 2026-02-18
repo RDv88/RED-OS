@@ -3,6 +3,7 @@ package net.rdv88.redos.client.gui.screen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -27,6 +28,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
     private int editingTaskIndex = -1;
     
     private static List<SyncDroneHubTasksPayload.TaskData> clientTasks = new ArrayList<>();
+    private float currentScale = 1.0f;
 
     public DroneStationScreen(DroneStationScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
@@ -41,20 +43,23 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
 
     @Override
     protected void init() {
+        this.leftPos = 0;
+        this.topPos = 0;
         super.init();
-        this.leftPos = (this.width - this.imageWidth) / 2;
+        this.leftPos = 0;
+        this.topPos = 0;
         ClientPlayNetworking.send(new RequestSyncDroneTasksPayload(this.menu.getPos()));
         refreshButtons();
     }
 
     private void refreshButtons() {
         this.clearWidgets();
-        int rx = this.leftPos + 176 + 20;
+        int rx = 176 + 20;
         int rWidth = 350;
         int midX = rx + rWidth / 2;
 
         if (viewMode == ViewMode.MAIN) {
-            this.addRenderableWidget(new NavButton(midX - 10, this.topPos + 22, 20, 12, "+", b -> {
+            this.addRenderableWidget(new NavButton(midX - 10, 22, 20, 12, "+", b -> {
                 viewMode = ViewMode.SELECT_SOURCE;
                 refreshButtons();
             }, 0xFF00AA22));
@@ -63,9 +68,9 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
                 if (i > 10) break;
                 int index = i;
                 SyncDroneHubTasksPayload.TaskData t = clientTasks.get(i);
-                int rowY = this.topPos + 40 + (i * 12);
+                int rowY = 52 + (i * 12);
                 
-                this.addRenderableWidget(new RowButton(rx + 10, rowY, rWidth - 60, 11, t, b -> {
+                this.addRenderableWidget(new RowButton(rx + 10, rowY, rWidth - 55, 11, t, b -> {
                     ClientPlayNetworking.send(new ConfigureDroneHubPayload(this.menu.getPos(), "TOGGLE_TASK", index, BlockPos.ZERO, BlockPos.ZERO, 0));
                 }));
 
@@ -83,17 +88,17 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
             }
         } else if (viewMode == ViewMode.SELECT_SOURCE || viewMode == ViewMode.SELECT_TARGET) {
             setupTagSelection(rx, rWidth);
-            this.addRenderableWidget(new NavButton(midX - 50, this.topPos + 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
         } else if (viewMode == ViewMode.SELECT_PRIORITY) {
-            this.addRenderableWidget(new NavButton(midX - 60, this.topPos + 50, 120, 20, "PRIORITY 1 (HIGH)", b -> finalizeTask(1), 0xFF00AA22));
-            this.addRenderableWidget(new NavButton(midX - 60, this.topPos + 75, 120, 20, "PRIORITY 2 (NORMAL)", b -> finalizeTask(2), 0xFF008888));
-            this.addRenderableWidget(new NavButton(midX - 60, this.topPos + 100, 120, 20, "PRIORITY 3 (LOW)", b -> finalizeTask(3), 0xFF444444));
-            this.addRenderableWidget(new NavButton(midX - 50, this.topPos + 155, 100, 16, "BACK", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 60, 50, 120, 20, "PRIORITY 1 (HIGH)", b -> finalizeTask(1), 0xFF00AA22));
+            this.addRenderableWidget(new NavButton(midX - 60, 75, 120, 20, "PRIORITY 2 (NORMAL)", b -> finalizeTask(2), 0xFF008888));
+            this.addRenderableWidget(new NavButton(midX - 60, 100, 120, 20, "PRIORITY 3 (LOW)", b -> finalizeTask(3), 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "BACK", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF444444));
         } else if (viewMode == ViewMode.EDIT_OPTIONS) {
-            this.addRenderableWidget(new NavButton(midX - 80, this.topPos + 50, 160, 20, "CHANGE SOURCE TAG", b -> { viewMode = ViewMode.SELECT_SOURCE; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 80, this.topPos + 75, 160, 20, "CHANGE DESTINATION TAG", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 80, this.topPos + 100, 160, 20, "CHANGE PRIORITY", b -> { viewMode = ViewMode.SELECT_PRIORITY; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 50, this.topPos + 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 80, 50, 160, 20, "CHANGE SOURCE TAG", b -> { viewMode = ViewMode.SELECT_SOURCE; refreshButtons(); }, 0xFF0055AA));
+            this.addRenderableWidget(new NavButton(midX - 80, 75, 160, 20, "CHANGE DESTINATION TAG", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF0055AA));
+            this.addRenderableWidget(new NavButton(midX - 80, 100, 160, 20, "CHANGE PRIORITY", b -> { viewMode = ViewMode.SELECT_PRIORITY; refreshButtons(); }, 0xFF0055AA));
+            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
         }
     }
 
@@ -117,10 +122,6 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         DroneStationBlockEntity be = (DroneStationBlockEntity) minecraft.level.getBlockEntity(this.menu.getPos());
         String netId = be != null ? be.getNetworkId() : "00000";
         
-        // INTELLIGENT FILTERING:
-        // 1. Filter only IO Tags on the SAME network ID
-        // 2. If selecting TARGET, filter out the chosen SOURCE (prevent loopback)
-        // 3. If selecting SOURCE, filter out the chosen TARGET (prevent loopback)
         List<TechNetwork.NetworkNode> tags = TechNetwork.getNodes().values().stream()
                 .filter(n -> n.type == TechNetwork.NodeType.IO_TAG && n.networkId.equals(netId))
                 .filter(n -> {
@@ -133,7 +134,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         for (int i = 0; i < tags.size(); i++) {
             if (i > 8) break;
             TechNetwork.NetworkNode node = tags.get(i);
-            this.addRenderableWidget(new NavButton(rx + 15, this.topPos + 45 + (i * 11), rw - 30, 10, "UPLINK: " + node.customName, b -> {
+            this.addRenderableWidget(new NavButton(rx + 15, 45 + (i * 11), rw - 30, 10, "UPLINK: " + node.customName, b -> {
                 if (viewMode == ViewMode.SELECT_SOURCE) {
                     pendingSource = node.pos;
                     viewMode = (editingTaskIndex != -1) ? ViewMode.EDIT_OPTIONS : ViewMode.SELECT_TARGET;
@@ -163,33 +164,38 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         g.fill(x + w - 1, y, x + w, y + h, 0xFF555555);
     }
 
+    @Override public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float delta) {}
+
     @Override
     protected void renderBg(GuiGraphics g, float delta, int mouseX, int mouseY) {
-        int x = this.leftPos;
-        int y = this.topPos;
-
-        drawChestBackground(g, x, y, 176, 133);
-        for (int i = 0; i < 5; i++) drawSlot(g, x + 43 + (i * 18), y + 17);
+        drawChestBackground(g, 0, 0, 176, 133);
+        for (int i = 0; i < 5; i++) drawSlot(g, 43 + (i * 18), 17);
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 9; j++) drawSlot(g, x + 7 + j * 18, y + 50 + i * 18);
+            for (int j = 0; j < 9; j++) drawSlot(g, 7 + j * 18, 50 + i * 18);
         }
-        for (int i = 0; i < 9; i++) drawSlot(g, x + 7 + i * 18, y + 108);
+        for (int i = 0; i < 9; i++) drawSlot(g, 7 + i * 18, 108);
 
-        int rx = x + 176 + 20; 
+        int rx = 176 + 20; 
         int rWidth = 350;
         int rHeight = 180;
-        g.fill(rx, y, rx + rWidth, y + rHeight, 0xFF000000);
-        g.renderOutline(rx, y, rWidth, rHeight, 0xFF440000);
-        g.fill(rx + 2, y + 2, rx + rWidth - 2, y + rHeight - 2, 0xFF100505);
+        g.fill(rx, 0, rx + rWidth, rHeight, 0xFF000000);
+        g.renderOutline(rx, 0, rWidth, rHeight, 0xFF440000);
+        g.fill(rx + 2, 2, rx + rWidth - 2, rHeight - 2, 0xFF100505);
 
-        g.drawString(this.font, "§c> LOGISTICS COMMAND CENTER", rx + 10, y + 10, 0xFFFFFFFF, false);
-        g.fill(rx + 10, y + 20, rx + rWidth - 10, y + 21, 0xFF440000);
+        g.drawString(this.font, "§c> LOGISTICS COMMAND CENTER", rx + 10, 10, 0xFFFFFFFF, false);
+        g.fill(rx + 10, 20, rx + rWidth - 10, 21, 0xFF440000);
 
         if (viewMode == ViewMode.MAIN) {
-            g.drawString(this.font, "ACTIVE LOGISTICS MISSIONS:", rx + 10, y + 25, 0xFFAA0000, false);
-            if (clientTasks.isEmpty()) g.drawCenteredString(font, "SYSTEM STANDBY - READY FOR UPLINK", rx + rWidth/2, y + 80, 0xFF444444);
+            g.drawString(this.font, "ACTIVE LOGISTICS MISSIONS:", rx + 10, 25, 0xFFAA0000, false);
+            int headerY = 36;
+            g.drawString(this.font, "§cIN - SOURCE", rx + 12, headerY, 0xFFFFFFFF, false);
+            g.drawString(this.font, "§cDESTINATION (FREE)", rx + 105, headerY, 0xFFFFFFFF, false);
+            g.drawString(this.font, "§cPRIO", rx + 245, headerY, 0xFFFFFFFF, false);
+            g.drawString(this.font, "§cSTATUS", rx + 285, headerY, 0xFFFFFFFF, false);
+            g.fill(rx + 10, headerY + 9, rx + rWidth - 10, headerY + 10, 0xFF330000);
+            if (clientTasks.isEmpty()) g.drawCenteredString(font, "SYSTEM STANDBY - READY FOR UPLINK", rx + rWidth/2, 80, 0xFF444444);
         } else if (viewMode == ViewMode.EDIT_OPTIONS) {
-            g.drawCenteredString(font, "§bEDIT MISSION #" + (editingTaskIndex + 1), rx + rWidth/2, y + 30, 0xFFFFFFFF);
+            g.drawCenteredString(font, "§bEDIT MISSION #" + (editingTaskIndex + 1), rx + rWidth/2, 30, 0xFFFFFFFF);
         } else {
             String step = switch(viewMode) {
                 case SELECT_SOURCE -> "STEP 1: SELECT SOURCE IO TAG";
@@ -197,21 +203,67 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
                 case SELECT_PRIORITY -> "STEP 3: SELECT MISSION PRIORITY";
                 default -> "";
             };
-            g.drawCenteredString(font, "§b" + step, rx + rWidth/2, y + 30, 0xFFFFFFFF);
+            g.drawCenteredString(font, "§b" + step, rx + rWidth/2, 30, 0xFFFFFFFF);
         }
 
-        g.drawString(this.font, "Drone Hub", x + (176 - font.width("Drone Hub"))/2, y + 6, 0xFF404040, false);
-        g.drawString(this.font, "Inventory", x + 8, y + 39, 0xFF404040, false);
+        g.drawString(this.font, "Drone Hub", (176 - font.width("Drone Hub"))/2, 6, 0xFF404040, false);
+        g.drawString(this.font, "Inventory", 8, 39, 0xFF404040, false);
     }
+
+    @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {}
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
-        super.render(g, mouseX, mouseY, delta);
+        g.fill(0, 0, this.width, this.height, 0x80000000);
+
+        this.currentScale = 1.0f;
+        if (this.imageWidth > this.width * 0.95f) {
+            currentScale = (this.width * 0.95f) / (float)this.imageWidth;
+        }
+
+        float centerX = this.width / 2f;
+        float centerY = this.height / 2f;
+        float scaledHalfWidth = (this.imageWidth * currentScale) / 2f;
+        float scaledHalfHeight = (this.imageHeight * currentScale) / 2f;
+
+        g.pose().pushMatrix();
+        g.pose().translate(centerX - scaledHalfWidth, centerY - scaledHalfHeight);
+        g.pose().scale(currentScale, currentScale);
+        
+        int scaledMouseX = (int)((mouseX - (centerX - scaledHalfWidth)) / currentScale);
+        int scaledMouseY = (int)((mouseY - (centerY - scaledHalfHeight)) / currentScale);
+        
+        this.renderBg(g, delta, scaledMouseX, scaledMouseY);
+        super.render(g, scaledMouseX, scaledMouseY, delta);
+        
+        g.pose().popMatrix();
         this.renderTooltip(g, mouseX, mouseY);
     }
 
+    private MouseButtonEvent translateEvent(MouseButtonEvent e) {
+        float centerX = this.width / 2f;
+        float centerY = this.height / 2f;
+        float scaledHalfWidth = (this.imageWidth * currentScale) / 2f;
+        float scaledHalfHeight = (this.imageHeight * currentScale) / 2f;
+        double smX = (e.x() - (centerX - scaledHalfWidth)) / currentScale;
+        double smY = (e.y() - (centerY - scaledHalfHeight)) / currentScale;
+        return new MouseButtonEvent(smX, smY, e.buttonInfo());
+    }
+
     @Override
-    protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {}
+    public boolean mouseClicked(MouseButtonEvent event, boolean isSecondary) {
+        return super.mouseClicked(translateEvent(event), isSecondary);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        return super.mouseReleased(translateEvent(event));
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
+        return super.mouseDragged(translateEvent(event), deltaX / currentScale, deltaY / currentScale);
+    }
 
     private class RowButton extends Button {
         private final SyncDroneHubTasksPayload.TaskData task;
@@ -220,15 +272,36 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
             this.task = t;
         }
         @Override public void onPress(net.minecraft.client.input.InputWithModifiers m) { this.onPress.onPress(this); }
+        
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
             if (isHovered()) g.fill(getX(), getY(), getX() + width, getY() + height, 0x22FF0000);
             
             String srcName = TechNetwork.getNodes().containsKey(task.src()) ? TechNetwork.getNodes().get(task.src()).customName : "TAG-SRC";
             String dstName = TechNetwork.getNodes().containsKey(task.dst()) ? TechNetwork.getNodes().get(task.dst()).customName : "TAG-DST";
-            String status = task.enabled() ? "§a[ENABLED]" : "§7[PAUSED]";
-            String taskText = String.format("%s §7->§r %s §6P%d §r%s", srcName, dstName, task.prio(), status);
+            String status = task.enabled() ? "§aON" : "§7OFF";
             
-            g.drawString(minecraft.font, taskText, getX() + 4, getY() + 2, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+            // ORDER: (IN) SOURCE | DESTINATION (FREE)
+            g.drawString(minecraft.font, "§b(" + task.srcCount() + ")§r", getX() + 2, getY() + 2, 0xFFFFFFFF, false);
+            drawMarqueeText(g, srcName, getX() + 28, getY() + 2, 72, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA);
+            
+            drawMarqueeText(g, dstName, getX() + 105, getY() + 2, 72, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA);
+            g.drawString(minecraft.font, "§a(" + task.dstFree() + ")§r", getX() + 180, getY() + 2, 0xFFFFFFFF, false);
+            
+            g.drawString(minecraft.font, "§6P" + task.prio(), getX() + 245, getY() + 2, 0xFFFFFFFF, false);
+            g.drawString(minecraft.font, status, getX() + 285, getY() + 2, 0xFFFFFFFF, false);
+        }
+
+        private void drawMarqueeText(GuiGraphics g, String text, int x, int y, int maxWidth, int color) {
+            int textWidth = minecraft.font.width(text);
+            if (textWidth <= maxWidth) {
+                g.drawString(minecraft.font, text, x, y, color, false);
+                return;
+            }
+            double time = System.currentTimeMillis() / 2000.0;
+            int offset = (int) ((Math.sin(time * Math.PI) * 0.5 + 0.5) * (textWidth - maxWidth));
+            g.enableScissor(x, y, x + maxWidth, y + 10);
+            g.drawString(minecraft.font, text, x - offset, y, color, false);
+            g.disableScissor();
         }
     }
 

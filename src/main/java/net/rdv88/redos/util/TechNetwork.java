@@ -411,6 +411,11 @@ public class TechNetwork {
     public static void syncToAll(Level level) { if (level == null || level.isClientSide() || level.getServer() == null) return; List<SyncNetworkNodesPayload.NodeData> data = new ArrayList<>(); for (NetworkNode node : SERVER_REGISTRY.values()) data.add(new net.rdv88.redos.network.payload.SyncNetworkNodesPayload.NodeData(node.pos, node.networkId, node.customName, node.type.name(), node.dimension)); for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new net.rdv88.redos.network.payload.SyncNetworkNodesPayload(data)); }
     public static void updateObstructions(Level level, BlockPos pos) {}
     public static String getNetIdFromRegistry(Level level, BlockPos pos) { NetworkNode node = getRegistry(level).get(pos); return node != null ? node.networkId : ""; }
+    
+    public static @org.jetbrains.annotations.Nullable NetworkNode getNodeAt(BlockPos pos) {
+        return SERVER_REGISTRY.get(pos);
+    }
+
     public static NodeType getTypeFromRegistry(Level level, BlockPos pos) { NetworkNode node = getRegistry(level).get(pos); return node != null ? node.type : null; }
 
     public static class NetworkSavedData {
