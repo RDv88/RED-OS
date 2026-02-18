@@ -7,6 +7,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import net.rdv88.redos.network.payload.SyncHandheldDataPayload;
 import net.rdv88.redos.network.payload.ConfigureDevicePayload;
@@ -22,7 +23,7 @@ public class HandheldAppLogistics implements HandheldApp {
     private static View currentView = View.MENU;
     
     private static int scrollOffset = 0;
-    private static SyncHandheldDataPayload.DeviceEntry selected = null;
+    private static BlockPos selectedPos = null; // Changed to BlockPos for real-time
     private EditBox nameInput;
     private EditBox idInput;
 
@@ -30,14 +31,22 @@ public class HandheldAppLogistics implements HandheldApp {
         this.devices = devices;
     }
 
+    private SyncHandheldDataPayload.DeviceEntry getSelectedDevice() {
+        if (selectedPos == null) return null;
+        return devices.stream().filter(d -> d.pos().equals(selectedPos)).findFirst().orElse(null);
+    }
+
     @Override
     public void init(int screenX, int screenY, int width, int height, WidgetAdder adder) {
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
+        if (selected == null && currentView == View.CONFIG) currentView = View.MENU;
+
         switch (currentView) {
             case MENU -> setupMenu(screenX, screenY, width, adder);
             case TAG_LIST -> populateList(screenX, screenY, width, adder, "IO_TAG");
             case HUB_LIST -> populateList(screenX, screenY, width, adder, "DRONE_STATION");
             case FLEET_STATUS -> { }
-            case CONFIG -> setupConfigFields(screenX, screenY, adder);
+            case CONFIG -> setupConfigFields(screenX, screenY, adder, selected);
         }
     }
 
@@ -67,22 +76,22 @@ public class HandheldAppLogistics implements HandheldApp {
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
             adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 10, 16, device, b -> {
-                selected = device; 
+                selectedPos = device.pos(); 
                 currentView = View.CONFIG;
                 HandheldScreen.refreshApp();
             }));
         }
     }
 
-    private void setupConfigFields(int sx, int sy, WidgetAdder adder) {
+    private void setupConfigFields(int sx, int sy, WidgetAdder adder, SyncHandheldDataPayload.DeviceEntry selected) {
         this.nameInput = new EditBox(font, sx + 55, sy + 80, 160, 18, Component.literal("Name"));
         this.nameInput.setMaxLength(20); 
-        this.nameInput.setValue(selected.name());
+        this.nameInput.setValue(selected != null ? selected.name() : "");
         adder.add(nameInput);
 
         this.idInput = new EditBox(font, sx + 55, sy + 110, 160, 18, Component.literal("NW-ID"));
         this.idInput.setMaxLength(5); 
-        this.idInput.setValue(selected.id());
+        this.idInput.setValue(selected != null ? selected.id() : "");
         adder.add(idInput);
         
         nameInput.setFocused(true);
@@ -99,6 +108,8 @@ public class HandheldAppLogistics implements HandheldApp {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
         int cx = sx + w / 2;
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
+        
         switch (currentView) {
             case MENU -> {
                 g.drawCenteredString(font, "LOGISTICS HUB", cx, sy + 18, 0xFFAA0000);
@@ -115,11 +126,19 @@ public class HandheldAppLogistics implements HandheldApp {
                 g.drawString(font, "Network: ONLINE", sx + 20, sy + 100, 0xFF00FF00, false);
             }
             case CONFIG -> {
-                String type = selected.type().equals("IO_TAG") ? "TAG" : "HUB";
-                g.drawCenteredString(font, "> " + type + " CONFIG", cx, sy + 18, 0xFFAA0000);
-                g.drawString(font, "Name:", sx + 10, sy + 85, 0xFFAAAAAA, false);
-                g.drawString(font, "NW-ID:", sx + 10, sy + 115, 0xFFAAAAAA, false);
-                g.drawString(font, "Pos: " + selected.pos().toShortString(), sx + 10, sy + 140, 0xFF666666, false);
+                if (selected != null) {
+                    String type = selected.type().equals("IO_TAG") ? "TAG" : "HUB";
+                    g.drawCenteredString(font, "> " + type + " CONFIG", cx, sy + 18, 0xFFAA0000);
+                    
+                    if (selected.type().equals("IO_TAG")) {
+                        g.drawString(font, "INVENTORY: §b" + selected.itemCount() + " items", sx + 10, sy + 45, 0xFFAAAAAA, false);
+                        g.drawString(font, "FREE SPACE: §a" + selected.freeSpace(), sx + 10, sy + 57, 0xFFAAAAAA, false);
+                    }
+
+                    g.drawString(font, "Name:", sx + 10, sy + 85, 0xFFAAAAAA, false);
+                    g.drawString(font, "NW-ID:", sx + 10, sy + 115, 0xFFAAAAAA, false);
+                    g.drawString(font, "Pos: " + selected.pos().getX() + "," + selected.pos().getY() + "," + selected.pos().getZ(), sx + 10, sy + 140, 0xFF666666, false);
+                }
             }
         }
     }
@@ -147,9 +166,10 @@ public class HandheldAppLogistics implements HandheldApp {
     }
     
     public void back() {
-        if (currentView == View.CONFIG) { 
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
+        if (currentView == View.CONFIG && selected != null) { 
             currentView = selected.type().equals("IO_TAG") ? View.TAG_LIST : View.HUB_LIST; 
-            selected = null; 
+            selectedPos = null; 
         } else if (currentView != View.MENU) { 
             currentView = View.MENU; 
         } else { 
@@ -159,17 +179,18 @@ public class HandheldAppLogistics implements HandheldApp {
     }
     
     public void save() {
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
         if (selected != null && nameInput != null && idInput != null) {
             String n = nameInput.getValue(); 
             String i = idInput.getValue();
             if (i.length() == 5) {
                 ClientPlayNetworking.send(new ConfigureDevicePayload(selected.pos(), n, i));
                 currentView = selected.type().equals("IO_TAG") ? View.TAG_LIST : View.HUB_LIST;
-                selected = null; 
+                selectedPos = null; 
                 HandheldScreen.refreshApp();
             }
         }
     }
     
-    public static void clearState() { currentView = View.MENU; selected = null; scrollOffset = 0; }
+    public static void clearState() { currentView = View.MENU; selectedPos = null; scrollOffset = 0; }
 }

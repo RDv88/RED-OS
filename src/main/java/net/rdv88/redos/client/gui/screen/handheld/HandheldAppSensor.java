@@ -21,21 +21,29 @@ public class HandheldAppSensor implements HandheldApp {
     private final List<SyncHandheldDataPayload.DeviceEntry> devices;
     
     private static int scrollOffset = 0;
-    private static SyncHandheldDataPayload.DeviceEntry selected = null;
-    private static SyncHandheldDataPayload.DeviceEntry setupTarget = null;
+    private static BlockPos selectedPos = null;
+    private static BlockPos setupPos = null;
     private EditBox nameInput;
     private EditBox idInput;
 
     public HandheldAppSensor(List<SyncHandheldDataPayload.DeviceEntry> devices) { this.devices = devices; }
 
+    private SyncHandheldDataPayload.DeviceEntry getDeviceAt(BlockPos pos) {
+        if (pos == null) return null;
+        return devices.stream().filter(d -> d.pos().equals(pos)).findFirst().orElse(null);
+    }
+
     @Override
     public void init(int screenX, int screenY, int width, int height, WidgetAdder adder) {
-        if (selected != null) { setupConfigFields(screenX, screenY, adder); }
-        else if (setupTarget != null) { setupSensorFields(screenX, screenY, width, adder); }
+        SyncHandheldDataPayload.DeviceEntry selected = getDeviceAt(selectedPos);
+        SyncHandheldDataPayload.DeviceEntry setupTarget = getDeviceAt(setupPos);
+
+        if (selected != null) { setupConfigFields(screenX, screenY, adder, selected); }
+        else if (setupTarget != null) { setupSensorFields(screenX, screenY, width, adder, setupTarget); }
         else { populateTable(screenX, screenY, width, adder); }
     }
 
-    private void setupConfigFields(int sx, int sy, WidgetAdder adder) {
+    private void setupConfigFields(int sx, int sy, WidgetAdder adder, SyncHandheldDataPayload.DeviceEntry selected) {
         this.nameInput = new EditBox(font, sx + 55, sy + 100, 160, 18, Component.literal("SensorName"));
         this.nameInput.setMaxLength(20); this.nameInput.setValue(selected.name());
         adder.add(nameInput);
@@ -45,46 +53,43 @@ public class HandheldAppSensor implements HandheldApp {
         nameInput.setFocused(true);
     }
 
-    private void setupSensorFields(int sx, int sy, int w, WidgetAdder adder) {
+    private void setupSensorFields(int sx, int sy, int w, WidgetAdder adder, SyncHandheldDataPayload.DeviceEntry setupTarget) {
         int ty = sy + 40;
         int btnW = 80;
         int bx = sx + (w / 2) - 90;
 
         adder.add(new SettingToggle(bx, ty, btnW, 14, "PLAYERS", setupTarget.detectPlayers(), b -> {
-            saveSettings(!setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, !setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 16, btnW, 14, "ENEMIES", setupTarget.detectMobs(), b -> {
-            saveSettings(setupTarget.detectPlayers(), !setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), !setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 32, btnW, 14, "NEUTRALS", setupTarget.detectAnimals(), b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), !setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), !setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 48, btnW, 14, "VILLAGERS", setupTarget.detectVillagers(), b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), !setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), !setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
         }));
 
         int ax = sx + (w / 2) + 10;
         adder.add(new HandheldScreen.NavButton(ax, ty + 10, 20, 14, "-", b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.max(1, setupTarget.range() - 1), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.max(1, setupTarget.range() - 1), setupTarget.holdTime());
         }, 0xFF444444));
         adder.add(new HandheldScreen.NavButton(ax + 50, ty + 10, 20, 14, "+", b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.min(15, setupTarget.range() + 1), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.min(15, setupTarget.range() + 1), setupTarget.holdTime());
         }, 0xFF444444));
 
         adder.add(new HandheldScreen.NavButton(ax, ty + 42, 20, 14, "-", b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.max(0, setupTarget.holdTime() - 10));
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.max(0, setupTarget.holdTime() - 10));
         }, 0xFF444444));
         adder.add(new HandheldScreen.NavButton(ax + 50, ty + 42, 20, 14, "+", b -> {
-            saveSettings(setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.min(100, setupTarget.holdTime() + 10));
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.min(100, setupTarget.holdTime() + 10));
         }, 0xFF444444));
     }
 
-    private void saveSettings(boolean p, boolean m, boolean a, boolean v, int range, int hold) {
-        if (setupTarget != null) {
-            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureSensorSettingsPayload(setupTarget.pos(), p, m, a, v, range, hold));
-            setupTarget = new SyncHandheldDataPayload.DeviceEntry(setupTarget.pos(), setupTarget.id(), setupTarget.name(), setupTarget.type(), setupTarget.signalStrength(), setupTarget.connectionMode(), p, m, a, v, range, hold);
-            HandheldScreen.refreshApp();
-        }
+    private void saveSettings(SyncHandheldDataPayload.DeviceEntry target, boolean p, boolean m, boolean a, boolean v, int range, int hold) {
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureSensorSettingsPayload(target.pos(), p, m, a, v, range, hold));
+        HandheldScreen.refreshApp();
     }
 
     private void populateTable(int sx, int sy, int w, WidgetAdder adder) {
@@ -100,18 +105,21 @@ public class HandheldAppSensor implements HandheldApp {
             int index = i + scrollOffset; if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 50, 16, device, b -> { selected = device; HandheldScreen.refreshApp(); }));
-            adder.add(new HandheldScreen.NavButton(sx + w - 42, rowY + 1, 35, 14, "SETUP", b -> { setupTarget = device; HandheldScreen.refreshApp(); }, 0xFF880000));
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 50, 16, device, b -> { selectedPos = device.pos(); HandheldScreen.refreshApp(); }));
+            adder.add(new HandheldScreen.NavButton(sx + w - 42, rowY + 1, 35, 14, "SETUP", b -> { setupPos = device.pos(); HandheldScreen.refreshApp(); }, 0xFF880000));
         }
     }
 
-    @Override public Optional<GuiEventListener> getInitialFocus() { return selected != null ? Optional.ofNullable(nameInput) : Optional.empty(); }
-    @Override public boolean isEditMode() { return selected != null || setupTarget != null; }
+    @Override public Optional<GuiEventListener> getInitialFocus() { return selectedPos != null ? Optional.ofNullable(nameInput) : Optional.empty(); }
+    @Override public boolean isEditMode() { return selectedPos != null || setupPos != null; }
     
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
         int cx = sx + w / 2;
-        if (selected != null) { renderDetailView(g, sx, sy, cx); }
-        else if (setupTarget != null) { renderSetupView(g, sx, sy, cx, w); }
+        SyncHandheldDataPayload.DeviceEntry selected = getDeviceAt(selectedPos);
+        SyncHandheldDataPayload.DeviceEntry setupTarget = getDeviceAt(setupPos);
+
+        if (selected != null) { renderDetailView(g, sx, sy, cx, selected); }
+        else if (setupTarget != null) { renderSetupView(g, sx, sy, cx, w, setupTarget); }
         else {
             g.drawString(font, "> SENSORS", sx + 5, sy + 22, 0xFFAA0000, false);
             long count = devices.stream().filter(d -> d.type().equals("SENSOR")).count();
@@ -120,7 +128,7 @@ public class HandheldAppSensor implements HandheldApp {
         }
     }
 
-    private void renderSetupView(GuiGraphics g, int sx, int sy, int cx, int w) {
+    private void renderSetupView(GuiGraphics g, int sx, int sy, int cx, int w, SyncHandheldDataPayload.DeviceEntry setupTarget) {
         g.drawCenteredString(font, "> SENSOR SETUP", cx, sy + 18, 0xFFAA0000);
         g.drawCenteredString(font, setupTarget.name(), cx, sy + 28, 0xFF888888);
         
@@ -135,7 +143,7 @@ public class HandheldAppSensor implements HandheldApp {
         g.drawCenteredString(font, (setupTarget.holdTime() / 20.0) + "s", ax + 35, ty + 45, 0xFFFFFFFF);
     }
 
-    private void renderDetailView(GuiGraphics g, int sx, int sy, int cx) {
+    private void renderDetailView(GuiGraphics g, int sx, int sy, int cx, SyncHandheldDataPayload.DeviceEntry selected) {
         g.drawCenteredString(font, "> SENSOR DETAILS", cx, sy + 18, 0xFFAA0000);
         int ty = sy + 35; g.drawString(font, "TYPE: ENVIRONMENT SENSOR", sx + 10, ty, 0xFFAAAAAA, false);
         g.drawString(font, "MODE: " + selected.connectionMode(), sx + 10, ty + 12, 0xFFAAAAAA, false);
@@ -150,7 +158,7 @@ public class HandheldAppSensor implements HandheldApp {
 
     @Override public void tick() {}
     @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) { 
-        if (selected != null) {
+        if (selectedPos != null) {
             if (event.key() == 257 || event.key() == 335) { save(); return true; }
             if (nameInput != null && nameInput.isFocused()) return nameInput.keyPressed(event);
             if (idInput != null && idInput.isFocused()) return idInput.keyPressed(event);
@@ -159,25 +167,26 @@ public class HandheldAppSensor implements HandheldApp {
     }
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) { return false; }
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
-        if (selected != null || setupTarget != null) return false;
+        if (selectedPos != null || setupPos != null) return false;
         if (v < 0) scrollOffset++; else if (v > 0) scrollOffset = Math.max(0, scrollOffset - 1);
         HandheldScreen.refreshApp(); return true;
     }
     public void back() { 
-        if (selected != null) { selected = null; HandheldScreen.refreshApp(); } 
-        else if (setupTarget != null) { setupTarget = null; HandheldScreen.refreshApp(); }
+        if (selectedPos != null) { selectedPos = null; HandheldScreen.refreshApp(); } 
+        else if (setupPos != null) { setupPos = null; HandheldScreen.refreshApp(); }
         else { HandheldScreen.requestAppSwitch("HOME"); } 
     }
     public void save() {
+        SyncHandheldDataPayload.DeviceEntry selected = getDeviceAt(selectedPos);
         if (selected != null && nameInput != null && idInput != null) {
             String n = nameInput.getValue(); String i = idInput.getValue();
             if (i.length() == 5) {
-                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureDevicePayload(selected.pos(), n, i));
-                selected = null; HandheldScreen.refreshApp();
+                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureDevicePayload(selected.pos(), n, i));
+                selectedPos = null; HandheldScreen.refreshApp();
             }
         }
     }
-    public static void clearState() { selected = null; setupTarget = null; scrollOffset = 0; }
+    public static void clearState() { selectedPos = null; setupPos = null; scrollOffset = 0; }
 
     private class SettingToggle extends Button {
         private final boolean active;

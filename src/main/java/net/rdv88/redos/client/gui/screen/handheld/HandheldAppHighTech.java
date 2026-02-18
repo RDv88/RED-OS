@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import net.rdv88.redos.network.payload.SyncHandheldDataPayload;
@@ -19,21 +20,27 @@ public class HandheldAppHighTech implements HandheldApp {
     private final List<SyncHandheldDataPayload.DeviceEntry> devices;
     
     private static int scrollOffset = 0;
-    private static SyncHandheldDataPayload.DeviceEntry selected = null;
+    private static BlockPos selectedPos = null; // Changed to BlockPos for real-time
     private EditBox nameInput;
     private EditBox idInput;
 
     public HandheldAppHighTech(List<SyncHandheldDataPayload.DeviceEntry> devices) { this.devices = devices; }
 
+    private SyncHandheldDataPayload.DeviceEntry getSelectedDevice() {
+        if (selectedPos == null) return null;
+        return devices.stream().filter(d -> d.pos().equals(selectedPos)).findFirst().orElse(null);
+    }
+
     @Override
     public void init(int sx, int sy, int w, int h, WidgetAdder adder) {
         if (!PermissionCache.hasHighTechAccess()) return;
 
-        if (selected != null) { setupConfigFields(sx, sy, adder); }
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
+        if (selected != null) { setupConfigFields(sx, sy, adder, selected); }
         else { populateTable(sx, sy, w, adder); }
     }
 
-    private void setupConfigFields(int sx, int sy, WidgetAdder adder) {
+    private void setupConfigFields(int sx, int sy, WidgetAdder adder, SyncHandheldDataPayload.DeviceEntry selected) {
         this.nameInput = new EditBox(font, sx + 55, sy + 100, 160, 18, Component.literal("PorterName"));
         this.nameInput.setMaxLength(20); this.nameInput.setValue(selected.name());
         adder.add(nameInput);
@@ -47,7 +54,7 @@ public class HandheldAppHighTech implements HandheldApp {
 
     @Override
     public Optional<GuiEventListener> getInitialFocus() {
-        return (PermissionCache.hasHighTechAccess() && selected != null) ? Optional.ofNullable(nameInput) : Optional.empty();
+        return (PermissionCache.hasHighTechAccess() && selectedPos != null) ? Optional.ofNullable(nameInput) : Optional.empty();
     }
 
     private void populateTable(int sx, int sy, int w, WidgetAdder adder) {
@@ -66,11 +73,11 @@ public class HandheldAppHighTech implements HandheldApp {
             int index = i + scrollOffset; if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 10, 16, device, b -> { selected = device; HandheldScreen.refreshApp(); }));
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 10, 16, device, b -> { selectedPos = device.pos(); HandheldScreen.refreshApp(); }));
         }
     }
 
-    @Override public boolean isEditMode() { return PermissionCache.hasHighTechAccess() && selected != null; }
+    @Override public boolean isEditMode() { return PermissionCache.hasHighTechAccess() && selectedPos != null; }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
@@ -97,8 +104,9 @@ public class HandheldAppHighTech implements HandheldApp {
             return;
         }
 
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
         if (selected != null) {
-            renderDetailView(g, sx, sy, cx);
+            renderDetailView(g, sx, sy, cx, selected);
         } else {
             g.drawString(font, "> QUANTUM LINK", sx + 5, sy + 22, 0xFF00FFFF, false);
             long count = devices.stream().filter(d -> d.type().equals("PORTER")).count();
@@ -107,7 +115,7 @@ public class HandheldAppHighTech implements HandheldApp {
         }
     }
 
-    private void renderDetailView(GuiGraphics g, int sx, int sy, int cx) {
+    private void renderDetailView(GuiGraphics g, int sx, int sy, int cx, SyncHandheldDataPayload.DeviceEntry selected) {
         g.drawCenteredString(font, "> PORTER DETAILS", cx, sy + 18, 0xFF00FFFF);
         
         int ty = sy + 35; 
@@ -128,7 +136,7 @@ public class HandheldAppHighTech implements HandheldApp {
 
     @Override public void tick() {}
     @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) { 
-        if (PermissionCache.hasHighTechAccess() && selected != null) {
+        if (PermissionCache.hasHighTechAccess() && selectedPos != null) {
             if (event.key() == 257 || event.key() == 335) { save(); return true; }
             if (nameInput != null && nameInput.isFocused()) return nameInput.keyPressed(event);
             if (idInput != null && idInput.isFocused()) return idInput.keyPressed(event);
@@ -137,14 +145,14 @@ public class HandheldAppHighTech implements HandheldApp {
     }
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) { return false; }
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
-        if (!PermissionCache.hasHighTechAccess() || selected != null) return false;
+        if (!PermissionCache.hasHighTechAccess() || selectedPos != null) return false;
         if (v < 0) scrollOffset++; else if (v > 0) scrollOffset = Math.max(0, scrollOffset - 1);
         HandheldScreen.refreshApp(); return true;
     }
     
     public void back() { 
-        if (selected != null) { 
-            selected = null; 
+        if (selectedPos != null) { 
+            selectedPos = null; 
             HandheldScreen.refreshApp(); 
         } else { 
             HandheldScreen.requestAppSwitch("HOME"); 
@@ -152,15 +160,16 @@ public class HandheldAppHighTech implements HandheldApp {
     }
     
     public void save() {
+        SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
         if (PermissionCache.hasHighTechAccess() && selected != null && nameInput != null && idInput != null) {
             String n = nameInput.getValue(); 
             String i = idInput.getValue();
             if (i.length() == 5) {
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureDevicePayload(selected.pos(), n, i));
-                selected = null; 
+                selectedPos = null; 
                 HandheldScreen.refreshApp();
             }
         }
     }
-    public static void clearState() { selected = null; scrollOffset = 0; }
+    public static void clearState() { selectedPos = null; scrollOffset = 0; }
 }
