@@ -6,10 +6,11 @@
 🔴 RED-OS is a comprehensive technological suite for Minecraft, designed to automate logistics, enhance security, and master spatial energy. No longer just a collection of machines, it is a unified operating system for your world.
 
 ## 🛰 How it Works: Discovery & Progression
-In Survival mode, RED-OS utilizes an advancement-based unlock system. The hardware is locked behind encrypted firmware that only initializes when you master fundamental world laws.
 
-*   **Tier 1 (Base Technology):** Automatically unlocks when a `Clock` and `Redstone Torch` are detected in your inventory. Grants access to basic networking, cameras, and sensors.
-*   **Tier 2 (Advanced Spatial):** Requires Tier 1 completion and discovery of an `Echo Shard`. Unlocks the Quantum Porter and Plasma Disintegrator.
+In Survival mode, RED-OS utilizes an advancement-based unlock system. Hardware tiers are unlocked as soon as the required items are detected in your inventory.
+
+* **Tier 1 (Base Technology):** Automatically unlocks when a `Clock` and `Redstone Torch` are detected in your inventory. Grants access to basic networking, cameras, and sensors.
+* **Tier 2 (Advanced Spatial):** Requires Tier 1 completion and discovery of an `Echo Shard`. Unlocks the Quantum Porter and Plasma Disintegrator.
 
 > **Note:** For architects, all features are immediately available in **Creative Mode** by searching for **RED-OS**.
 
