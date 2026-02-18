@@ -22,6 +22,7 @@ import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.rdv88.redos.block.entity.IOTagBlockEntity;
+import net.rdv88.redos.block.entity.ModBlockEntities;
 import net.rdv88.redos.util.TechNetwork;
 import org.jetbrains.annotations.Nullable;
 
@@ -109,6 +110,10 @@ public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implement
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return null;
+        return level.isClientSide() ? null : (level1, pos1, state1, blockEntity) -> {
+            if (blockEntity instanceof IOTagBlockEntity tag) {
+                IOTagBlockEntity.tick(level1, pos1, state1, tag);
+            }
+        };
     }
 }

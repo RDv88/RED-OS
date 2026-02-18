@@ -187,16 +187,27 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
         if (droneSlot == -1) return;
 
+        // NEW PRIORITY LOGIC: Find the highest priority level that has work
+        int bestPriority = 6; // Lower is better (1-5)
+        for (LogisticsTask task : taskList) {
+            if (!task.isAssigned && task.enabled && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
+                if (task.priority < bestPriority) bestPriority = task.priority;
+            }
+        }
+
+        if (bestPriority == 6) return; // No work found
+
+        // Pick the next task in the best priority group (Round-Robin within the same priority)
         int startIdx = (lastLaunchedTaskIndex + 1) % taskList.size();
         for (int i = 0; i < taskList.size(); i++) {
             int currentIdx = (startIdx + i) % taskList.size();
             LogisticsTask task = taskList.get(currentIdx);
             
-            if (!task.isAssigned && task.enabled && hasItemsAtSource(task.source)) {
+            if (!task.isAssigned && task.enabled && task.priority == bestPriority && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
                 List<BlockPos> waypoints = TechNetwork.findMeshPath(level, worldPosition, task.source, networkId);
                 if (!waypoints.isEmpty()) {
                     launchDroneAtTask(currentIdx, droneSlot, waypoints);
-                    break;
+                    return; // Successfully launched one drone
                 }
             }
         }
@@ -236,8 +247,70 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         markUpdated();
     }
 
+    /**
+     * Called by a drone in flight when its current task is finished (source empty).
+     * Returns a new task if available, or null if the drone should return home.
+     */
+    public @Nullable LogisticsTask requestNextTask(UUID droneId, int oldTaskIndex) {
+        // 1. Release the old task
+        if (oldTaskIndex >= 0 && oldTaskIndex < taskList.size()) {
+            taskList.get(oldTaskIndex).isAssigned = false;
+        }
+        activeDroneTasks.remove(droneId);
+
+        // 2. Search for the next highest priority task
+        int bestPriority = 6;
+        for (LogisticsTask task : taskList) {
+            if (!task.isAssigned && task.enabled && hasItemsAtSource(task.source)) {
+                if (task.priority < bestPriority) bestPriority = task.priority;
+            }
+        }
+
+        if (bestPriority == 6) return null;
+
+        // 3. Assign the new task (Round-Robin within priority)
+        int startIdx = (lastLaunchedTaskIndex + 1) % taskList.size();
+        for (int i = 0; i < taskList.size(); i++) {
+            int currentIdx = (startIdx + i) % taskList.size();
+            LogisticsTask task = taskList.get(currentIdx);
+            
+            if (!task.isAssigned && task.enabled && task.priority == bestPriority && hasItemsAtSource(task.source)) {
+                task.isAssigned = true;
+                lastLaunchedTaskIndex = currentIdx;
+                activeDroneTasks.put(droneId, currentIdx);
+                markUpdated();
+                return task;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasSpaceAtTarget(BlockPos tagPos) {
+        if (tagPos == null) return false;
+        
+        TechNetwork.NetworkNode node = TechNetwork.getNodeAt(tagPos);
+        if (node != null && node.networkId.equals(this.networkId)) {
+            Object spaceObj = node.settings.get("free_space");
+            if (spaceObj instanceof Number space) {
+                return space.intValue() >= 64; // Only launch if at least 1 stack fits
+            }
+        }
+        return true; // Fallback to true if unknown, the drone will check physically anyway
+    }
+
     private boolean hasItemsAtSource(BlockPos tagPos) {
         if (tagPos == null) return false;
+        
+        // Use the smart data from the registry instead of physical scanning
+        TechNetwork.NetworkNode node = TechNetwork.getNodeAt(tagPos);
+        if (node != null && node.networkId.equals(this.networkId)) {
+            Object countObj = node.settings.get("item_count");
+            if (countObj instanceof Number count) {
+                return count.intValue() > 0;
+            }
+        }
+        
+        // Fallback for cases where registry is not yet updated
         String tagNetId = TechNetwork.getNetIdFromRegistry(level, tagPos);
         if (tagNetId == null || !tagNetId.equals(this.networkId)) return false;
         for (int x = -1; x <= 1; x++) {

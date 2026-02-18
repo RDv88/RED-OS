@@ -134,12 +134,52 @@ public class DroneEntity extends Mob {
             case GOING_TO_TARGET -> navigateHighway(targetPos, State.UNLOADING);
             case UNLOADING -> {
                 dropItem();
-                List<BlockPos> toHub = TechNetwork.findMeshPath(level(), this.blockPosition(), hubPos, networkId);
-                if (toHub.isEmpty()) startPanic("Lost Link");
-                else { setHighway(toHub); state = State.RETURNING_HOME; }
+                if (hasMoreWork()) {
+                    List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
+                    if (toSource.isEmpty()) startPanic("Lost Source Link");
+                    else { setHighway(toSource); state = State.GOING_TO_SOURCE; }
+                } else {
+                    // EFFICIENCY FIX: Ask hub for next task before returning
+                    BlockEntity be = level().getBlockEntity(hubPos);
+                    if (be instanceof DroneStationBlockEntity hub) {
+                        DroneStationBlockEntity.LogisticsTask nextTask = hub.requestNextTask(getUUID(), taskIndex);
+                        if (nextTask != null) {
+                            this.sourcePos = nextTask.source;
+                            this.targetPos = nextTask.target;
+                            this.taskIndex = hub.getTasks().indexOf(nextTask);
+                            List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
+                            if (!toSource.isEmpty()) { 
+                                setHighway(toSource); 
+                                state = State.GOING_TO_SOURCE; 
+                                return; 
+                            }
+                        }
+                    }
+                    
+                    List<BlockPos> toHub = TechNetwork.findMeshPath(level(), this.blockPosition(), hubPos, networkId);
+                    if (toHub.isEmpty()) startPanic("Lost Hub Link");
+                    else { setHighway(toHub); state = State.RETURNING_HOME; }
+                }
             }
             case RETURNING_HOME -> navigateHighway(hubPos, null);
         }
+    }
+
+    private boolean hasMoreWork() {
+        if (sourcePos == null) return false;
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                for (int z = -1; z <= 1; z++) {
+                    BlockEntity be = level().getBlockEntity(sourcePos.offset(x, y, z));
+                    if (be instanceof Container container) {
+                        for (int i = 0; i < container.getContainerSize(); i++) {
+                            if (!container.getItem(i).isEmpty()) return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void handlePanic() {

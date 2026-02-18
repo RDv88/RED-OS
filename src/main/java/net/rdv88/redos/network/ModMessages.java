@@ -32,7 +32,34 @@ public class ModMessages {
 
     private static void syncHubTasks(DroneStationBlockEntity hub, ServerPlayer player, BlockPos pos) {
         List<SyncDroneHubTasksPayload.TaskData> taskData = hub.getTasks().stream()
-            .map(t -> new SyncDroneHubTasksPayload.TaskData(t.source, t.target, t.priority, t.isAssigned, t.enabled))
+            .map(t -> {
+                int srcCount = 0, srcFree = 0, dstCount = 0, dstFree = 0;
+                
+                // Fetch live RAM data for Source
+                TechNetwork.NetworkNode srcNode = TechNetwork.getNodeAt(t.source);
+                if (srcNode != null) {
+                    Object countObj = srcNode.settings.get("item_count");
+                    if (countObj instanceof Number num) srcCount = num.intValue();
+                    
+                    Object freeObj = srcNode.settings.get("free_space");
+                    if (freeObj instanceof Number num) srcFree = num.intValue();
+                }
+
+                // Fetch live RAM data for Target
+                TechNetwork.NetworkNode dstNode = TechNetwork.getNodeAt(t.target);
+                if (dstNode != null) {
+                    Object countObj = dstNode.settings.get("item_count");
+                    if (countObj instanceof Number num) dstCount = num.intValue();
+                    
+                    Object freeObj = dstNode.settings.get("free_space");
+                    if (freeObj instanceof Number num) dstFree = num.intValue();
+                }
+
+                return new SyncDroneHubTasksPayload.TaskData(
+                    t.source, t.target, t.priority, t.isAssigned, t.enabled,
+                    srcCount, srcFree, dstCount, dstFree
+                );
+            })
             .toList();
         ServerPlayNetworking.send(player, new SyncDroneHubTasksPayload(pos, taskData));
     }
