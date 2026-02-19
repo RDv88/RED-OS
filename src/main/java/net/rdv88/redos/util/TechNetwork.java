@@ -210,7 +210,24 @@ public class TechNetwork {
     }
 
     public static void removeNode(Level level, BlockPos pos) {
-        if (SERVER_REGISTRY.remove(pos) != null) { dbDirty = true; lastChangeTime = System.currentTimeMillis(); if (level != null) syncToAll(level); }
+        NetworkNode node = SERVER_REGISTRY.get(pos);
+        if (node != null) {
+            if (node.type == NodeType.IO_TAG && !level.isClientSide() && level instanceof ServerLevel serverLevel) {
+                // Notify all Hubs on the same network that this tag is gone
+                for (NetworkNode other : SERVER_REGISTRY.values()) {
+                    if (other.type == NodeType.DRONE_STATION && other.networkId.equals(node.networkId)) {
+                        BlockEntity be = serverLevel.getBlockEntity(other.pos);
+                        if (be instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
+                            hub.handleTagRemoval(pos);
+                        }
+                    }
+                }
+            }
+            SERVER_REGISTRY.remove(pos);
+            dbDirty = true;
+            lastChangeTime = System.currentTimeMillis();
+            if (level != null) syncToAll(level);
+        }
     }
 
     public static void tickLiveUpdates(net.minecraft.server.MinecraftServer server) {

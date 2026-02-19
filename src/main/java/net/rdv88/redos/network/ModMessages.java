@@ -176,6 +176,10 @@ public class ModMessages {
                     if (nameIsBlank) finalName = "IO Tag" + coords;
                     tag.setName(finalName); tag.setNetworkId(payload.newId()); deviceLabel = "IO Tag"; type = TechNetwork.NodeType.IO_TAG; serial = tag.getSerial();
                 }
+                else if (be instanceof DroneStationBlockEntity hub) {
+                    if (nameIsBlank) finalName = "Drone Hub" + coords;
+                    hub.setName(finalName); hub.setNetworkId(payload.newId()); deviceLabel = "Drone Hub"; type = TechNetwork.NodeType.DRONE_STATION; serial = hub.getSerial();
+                }
 
                 if (type != null) {
                     TechNetwork.registerNode(player.level(), targetPos, payload.newId(), finalName, type, serial);

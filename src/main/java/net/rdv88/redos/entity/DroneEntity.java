@@ -134,34 +134,43 @@ public class DroneEntity extends Mob {
             case GOING_TO_TARGET -> navigateHighway(targetPos, State.UNLOADING);
             case UNLOADING -> {
                 dropItem();
-                if (hasMoreWork()) {
-                    List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
-                    if (toSource.isEmpty()) startPanic("Lost Source Link");
-                    else { setHighway(toSource); state = State.GOING_TO_SOURCE; }
-                } else {
-                    BlockEntity be = level().getBlockEntity(hubPos);
-                    if (be instanceof DroneStationBlockEntity hub) {
-                        DroneStationBlockEntity.LogisticsTask nextTask = hub.requestNextTask(getUUID(), taskIndex);
-                        if (nextTask != null) {
-                            this.sourcePos = nextTask.source;
-                            this.targetPos = nextTask.target;
-                            this.taskIndex = hub.getTasks().indexOf(nextTask);
-                            List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
-                            if (!toSource.isEmpty()) { 
-                                setHighway(toSource); 
-                                state = State.GOING_TO_SOURCE; 
-                                return; 
-                            }
+                
+                // RE-EVALUATE: After every delivery, ask the Hub for the MOST IMPORTANT task
+                BlockEntity be = level().getBlockEntity(hubPos);
+                if (be instanceof DroneStationBlockEntity hub) {
+                    DroneStationBlockEntity.LogisticsTask nextTask = hub.requestNextTask(getUUID(), taskIndex);
+                    if (nextTask != null) {
+                        this.sourcePos = nextTask.source;
+                        this.targetPos = nextTask.target;
+                        this.taskIndex = hub.getTasks().indexOf(nextTask);
+                        
+                        List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
+                        if (!toSource.isEmpty()) { 
+                            setHighway(toSource); 
+                            state = State.GOING_TO_SOURCE; 
+                            return; 
                         }
                     }
-                    
-                    List<BlockPos> toHub = TechNetwork.findMeshPath(level(), this.blockPosition(), hubPos, networkId);
-                    if (toHub.isEmpty()) startPanic("Lost Hub Link");
-                    else { setHighway(toHub); state = State.RETURNING_HOME; }
                 }
+                
+                // No work found (source empty or target full) -> Return Home
+                List<BlockPos> toHub = TechNetwork.findMeshPath(level(), this.blockPosition(), hubPos, networkId);
+                if (toHub.isEmpty()) startPanic("Lost Hub Link");
+                else { setHighway(toHub); state = State.RETURNING_HOME; }
             }
             case RETURNING_HOME -> navigateHighway(hubPos, null);
         }
+    }
+
+    public void abortMission(String reason) {
+        if (state == State.RETURNING_HOME || state == State.CRASHING) return;
+        
+        state = State.RETURNING_HOME;
+        TechNetwork.broadcastToNetwork(level(), networkId, "§cMission Aborted: " + reason);
+        
+        List<BlockPos> toHub = TechNetwork.findMeshPath(level(), this.blockPosition(), hubPos, networkId);
+        if (toHub.isEmpty()) startPanic("Hub Link Lost during Abort");
+        else setHighway(toHub);
     }
 
     private boolean hasMoreWork() {

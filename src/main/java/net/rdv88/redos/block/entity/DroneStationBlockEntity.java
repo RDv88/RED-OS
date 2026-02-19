@@ -98,6 +98,16 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
     public void removeTask(int index) {
         if (index >= 0 && index < taskList.size()) {
+            final int taskIdx = index;
+            activeDroneTasks.forEach((droneUuid, assignedIdx) -> {
+                if (assignedIdx == taskIdx) {
+                    net.minecraft.world.entity.Entity entity = ((ServerLevel)level).getEntity(droneUuid);
+                    if (entity instanceof DroneEntity drone) {
+                        drone.abortMission("Task Removed");
+                    }
+                }
+            });
+
             taskList.remove(index);
             activeDroneTasks.entrySet().removeIf(entry -> entry.getValue() == index);
             markUpdated();
@@ -112,9 +122,53 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         }
     }
 
+    public void handleTagRemoval(BlockPos tagPos) {
+        if (level == null || level.isClientSide()) return;
+        
+        boolean changed = false;
+        for (int i = 0; i < taskList.size(); i++) {
+            LogisticsTask task = taskList.get(i);
+            if (task.source.equals(tagPos) || task.target.equals(tagPos)) {
+                task.enabled = false;
+                changed = true;
+                
+                final int taskIdx = i;
+                activeDroneTasks.forEach((droneUuid, assignedIdx) -> {
+                    if (assignedIdx == taskIdx) {
+                        net.minecraft.world.entity.Entity entity = ((ServerLevel)level).getEntity(droneUuid);
+                        if (entity instanceof DroneEntity drone) {
+                            drone.abortMission("Tag Disconnected");
+                        }
+                    }
+                });
+            }
+        }
+        
+        if (changed) {
+            markUpdated();
+            registerInNetwork();
+        }
+    }
+
     public void toggleTask(int index) {
         if (index >= 0 && index < taskList.size()) {
-            taskList.get(index).enabled = !taskList.get(index).enabled;
+            LogisticsTask task = taskList.get(index);
+            task.enabled = !task.enabled;
+            
+            if (!task.enabled) {
+                final int taskIdx = index;
+                activeDroneTasks.forEach((droneUuid, assignedIdx) -> {
+                    if (assignedIdx == taskIdx) {
+                        net.minecraft.world.entity.Entity entity = ((ServerLevel)level).getEntity(droneUuid);
+                        if (entity instanceof DroneEntity drone) {
+                            drone.abortMission("Task Deactivated");
+                        }
+                    }
+                });
+            } else {
+                tryLaunchDrone();
+            }
+            
             markUpdated();
         }
     }
@@ -152,12 +206,8 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
             Map.Entry<Integer, UUID> entry = it.next();
             UUID droneUuid = entry.getValue();
             long launchTime = blockEntity.launchTimes.getOrDefault(droneUuid, 0L);
-            if (currentTime - launchTime > 60) {
+            if (currentTime - launchTime > 12000) {
                 if (((ServerLevel)level).getEntity(droneUuid) == null) {
-                    int taskIdx = blockEntity.activeDroneTasks.getOrDefault(droneUuid, -1);
-                    if (taskIdx >= 0 && taskIdx < blockEntity.taskList.size()) {
-                        blockEntity.taskList.get(taskIdx).isAssigned = false;
-                    }
                     blockEntity.activeDroneTasks.remove(droneUuid);
                     blockEntity.launchTimes.remove(droneUuid);
                     it.remove();
@@ -166,7 +216,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
             }
         }
 
-        if (currentTime % 20 == 0) {
+        if (currentTime % 10 == 0) {
             blockEntity.tryLaunchDrone();
             blockEntity.registerInNetwork();
         }
@@ -175,39 +225,31 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
     private void tryLaunchDrone() {
         if (level == null || level.isClientSide() || taskList.isEmpty()) return;
 
-        int droneSlot = -1;
         for (int i = 0; i < droneInventory.getContainerSize(); i++) {
             if (!droneInventory.getItem(i).isEmpty() && 
                 droneInventory.getItem(i).is(ModItems.DRONE_UNIT) && 
                 !lockedSlots.containsKey(i)) {
-                droneSlot = i;
-                break;
-            }
-        }
+                
+                LogisticsTask chosenTask = null;
+                int chosenIdx = -1;
 
-        if (droneSlot == -1) return;
+                for (int p = 1; p <= 5; p++) {
+                    for (int j = 0; j < taskList.size(); j++) {
+                        LogisticsTask task = taskList.get(j);
+                        if (task.enabled && task.priority == p && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
+                            chosenTask = task;
+                            chosenIdx = j;
+                            break;
+                        }
+                    }
+                    if (chosenTask != null) break;
+                }
 
-        // NEW PRIORITY LOGIC: Find the highest priority level that has work
-        int bestPriority = 6; // Lower is better (1-5)
-        for (LogisticsTask task : taskList) {
-            if (!task.isAssigned && task.enabled && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
-                if (task.priority < bestPriority) bestPriority = task.priority;
-            }
-        }
-
-        if (bestPriority == 6) return; // No work found
-
-        // Pick the next task in the best priority group (Round-Robin within the same priority)
-        int startIdx = (lastLaunchedTaskIndex + 1) % taskList.size();
-        for (int i = 0; i < taskList.size(); i++) {
-            int currentIdx = (startIdx + i) % taskList.size();
-            LogisticsTask task = taskList.get(currentIdx);
-            
-            if (!task.isAssigned && task.enabled && task.priority == bestPriority && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
-                List<BlockPos> waypoints = TechNetwork.findMeshPath(level, worldPosition, task.source, networkId);
-                if (!waypoints.isEmpty()) {
-                    launchDroneAtTask(currentIdx, droneSlot, waypoints);
-                    return; // Successfully launched one drone
+                if (chosenTask != null) {
+                    List<BlockPos> waypoints = TechNetwork.findMeshPath(level, worldPosition, chosenTask.source, networkId);
+                    if (!waypoints.isEmpty()) {
+                        launchDroneAtTask(chosenIdx, i, waypoints);
+                    }
                 }
             }
         }
@@ -226,7 +268,6 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
             lockedSlots.put(slotIndex, drone.getUUID());
             activeDroneTasks.put(drone.getUUID(), index);
             launchTimes.put(drone.getUUID(), level.getGameTime());
-            task.isAssigned = true;
             lastLaunchedTaskIndex = index;
             markUpdated();
         }
@@ -237,6 +278,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         activeDroneTasks.remove(droneId);
         launchTimes.remove(droneId);
         markUpdated();
+        tryLaunchDrone();
     }
 
     public void onDroneCrash(UUID droneId, int slotIndex) {
@@ -247,39 +289,17 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         markUpdated();
     }
 
-    /**
-     * Called by a drone in flight when its current task is finished (source empty).
-     * Returns a new task if available, or null if the drone should return home.
-     */
     public @Nullable LogisticsTask requestNextTask(UUID droneId, int oldTaskIndex) {
-        // 1. Release the old task
-        if (oldTaskIndex >= 0 && oldTaskIndex < taskList.size()) {
-            taskList.get(oldTaskIndex).isAssigned = false;
-        }
         activeDroneTasks.remove(droneId);
 
-        // 2. Search for the next highest priority task
-        int bestPriority = 6;
-        for (LogisticsTask task : taskList) {
-            if (!task.isAssigned && task.enabled && hasItemsAtSource(task.source)) {
-                if (task.priority < bestPriority) bestPriority = task.priority;
-            }
-        }
-
-        if (bestPriority == 6) return null;
-
-        // 3. Assign the new task (Round-Robin within priority)
-        int startIdx = (lastLaunchedTaskIndex + 1) % taskList.size();
-        for (int i = 0; i < taskList.size(); i++) {
-            int currentIdx = (startIdx + i) % taskList.size();
-            LogisticsTask task = taskList.get(currentIdx);
-            
-            if (!task.isAssigned && task.enabled && task.priority == bestPriority && hasItemsAtSource(task.source)) {
-                task.isAssigned = true;
-                lastLaunchedTaskIndex = currentIdx;
-                activeDroneTasks.put(droneId, currentIdx);
-                markUpdated();
-                return task;
+        for (int p = 1; p <= 5; p++) {
+            for (int i = 0; i < taskList.size(); i++) {
+                LogisticsTask task = taskList.get(i);
+                if (task.enabled && task.priority == p && hasItemsAtSource(task.source) && hasSpaceAtTarget(task.target)) {
+                    activeDroneTasks.put(droneId, i);
+                    markUpdated();
+                    return task;
+                }
             }
         }
         return null;
@@ -287,42 +307,23 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
     private boolean hasSpaceAtTarget(BlockPos tagPos) {
         if (tagPos == null) return false;
-        
         TechNetwork.NetworkNode node = TechNetwork.getNodeAt(tagPos);
         if (node != null && node.networkId.equals(this.networkId)) {
             Object spaceObj = node.settings.get("free_space");
             if (spaceObj instanceof Number space) {
-                return space.intValue() >= 64; // Only launch if at least 1 stack fits
+                return space.intValue() >= 64;
             }
         }
-        return true; // Fallback to true if unknown, the drone will check physically anyway
+        return true;
     }
 
     private boolean hasItemsAtSource(BlockPos tagPos) {
         if (tagPos == null) return false;
-        
-        // Use the smart data from the registry instead of physical scanning
         TechNetwork.NetworkNode node = TechNetwork.getNodeAt(tagPos);
         if (node != null && node.networkId.equals(this.networkId)) {
             Object countObj = node.settings.get("item_count");
             if (countObj instanceof Number count) {
                 return count.intValue() > 0;
-            }
-        }
-        
-        // Fallback for cases where registry is not yet updated
-        String tagNetId = TechNetwork.getNetIdFromRegistry(level, tagPos);
-        if (tagNetId == null || !tagNetId.equals(this.networkId)) return false;
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    BlockEntity be = level.getBlockEntity(tagPos.offset(x, y, z));
-                    if (be instanceof Container container) {
-                        for (int i = 0; i < container.getContainerSize(); i++) {
-                            if (!container.getItem(i).isEmpty()) return true;
-                        }
-                    }
-                }
             }
         }
         return false;

@@ -276,9 +276,15 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
             if (isHovered()) g.fill(getX(), getY(), getX() + width, getY() + height, 0x22FF0000);
             
-            String srcName = TechNetwork.getNodes().containsKey(task.src()) ? TechNetwork.getNodes().get(task.src()).customName : "TAG-SRC";
-            String dstName = TechNetwork.getNodes().containsKey(task.dst()) ? TechNetwork.getNodes().get(task.dst()).customName : "TAG-DST";
-            String status = task.enabled() ? "§aON" : "§7OFF";
+            String srcName = TechNetwork.getNodes().containsKey(task.src()) ? TechNetwork.getNodes().get(task.src()).customName : "§cOFFLINE";
+            String dstName = TechNetwork.getNodes().containsKey(task.dst()) ? TechNetwork.getNodes().get(task.dst()).customName : "§cOFFLINE";
+            
+            String status;
+            if (!TechNetwork.getNodes().containsKey(task.src()) || !TechNetwork.getNodes().containsKey(task.dst())) {
+                status = "§cDISCONN";
+            } else {
+                status = task.enabled() ? "§aON" : "§7OFF";
+            }
             
             // ORDER: (IN) SOURCE | DESTINATION (FREE)
             g.drawString(minecraft.font, "§b(" + task.srcCount() + ")§r", getX() + 2, getY() + 2, 0xFFFFFFFF, false);
