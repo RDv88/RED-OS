@@ -39,20 +39,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Iterator;
-import java.util.HashSet;
-import java.util.Set;
 
 public class DroneStationBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<BlockPos>, ContainerListener {
     private String name = "Drone Hub";
     private String networkId = "00000";
     private String serial = UUID.randomUUID().toString();
     
-    private final SimpleContainer droneInventory = new SimpleContainer(5);
+    private final SimpleContainer droneInventory = new SimpleContainer(3);
     
     private final Map<Integer, UUID> lockedSlots = new HashMap<>();
     private final Map<UUID, Integer> activeDroneTasks = new HashMap<>();
     private final Map<UUID, Long> launchTimes = new HashMap<>();
     private int lastLaunchedTaskIndex = -1;
+    private boolean chunkForced = false;
     
     public static class LogisticsTask {
         public BlockPos source;
@@ -91,6 +90,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
     public boolean isSlotLocked(int slot) { return lockedSlots.containsKey(slot); }
 
     public void addTask(BlockPos source, BlockPos target, int priority) {
+        if (taskList.size() >= 9) return;
         taskList.add(new LogisticsTask(source, target, priority));
         markUpdated();
         registerInNetwork();
@@ -119,34 +119,6 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         if (index >= 0 && index < taskList.size()) {
             taskList.get(index).priority = newPriority;
             markUpdated();
-        }
-    }
-
-    public void handleTagRemoval(BlockPos tagPos) {
-        if (level == null || level.isClientSide()) return;
-        
-        boolean changed = false;
-        for (int i = 0; i < taskList.size(); i++) {
-            LogisticsTask task = taskList.get(i);
-            if (task.source.equals(tagPos) || task.target.equals(tagPos)) {
-                task.enabled = false;
-                changed = true;
-                
-                final int taskIdx = i;
-                activeDroneTasks.forEach((droneUuid, assignedIdx) -> {
-                    if (assignedIdx == taskIdx) {
-                        net.minecraft.world.entity.Entity entity = ((ServerLevel)level).getEntity(droneUuid);
-                        if (entity instanceof DroneEntity drone) {
-                            drone.abortMission("Tag Disconnected");
-                        }
-                    }
-                });
-            }
-        }
-        
-        if (changed) {
-            markUpdated();
-            registerInNetwork();
         }
     }
 
@@ -199,6 +171,8 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
     public static void tick(Level level, BlockPos pos, BlockState state, DroneStationBlockEntity blockEntity) {
         if (level.isClientSide()) return;
+        
+        blockEntity.updateChunkLoading();
 
         long currentTime = level.getGameTime();
         Iterator<Map.Entry<Integer, UUID>> it = blockEntity.lockedSlots.entrySet().iterator();
@@ -206,6 +180,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
             Map.Entry<Integer, UUID> entry = it.next();
             UUID droneUuid = entry.getValue();
             long launchTime = blockEntity.launchTimes.getOrDefault(droneUuid, 0L);
+            
             if (currentTime - launchTime > 12000) {
                 if (((ServerLevel)level).getEntity(droneUuid) == null) {
                     blockEntity.activeDroneTasks.remove(droneUuid);
@@ -273,6 +248,34 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         }
     }
 
+    public void handleTagRemoval(BlockPos tagPos) {
+        if (level == null || level.isClientSide()) return;
+        
+        boolean changed = false;
+        for (int i = 0; i < taskList.size(); i++) {
+            LogisticsTask task = taskList.get(i);
+            if (task.source.equals(tagPos) || task.target.equals(tagPos)) {
+                task.enabled = false;
+                changed = true;
+                
+                final int taskIdx = i;
+                activeDroneTasks.forEach((droneUuid, assignedIdx) -> {
+                    if (assignedIdx == taskIdx) {
+                        net.minecraft.world.entity.Entity entity = ((ServerLevel)level).getEntity(droneUuid);
+                        if (entity instanceof DroneEntity drone) {
+                            drone.abortMission("Tag Disconnected");
+                        }
+                    }
+                });
+            }
+        }
+        
+        if (changed) {
+            markUpdated();
+            registerInNetwork();
+        }
+    }
+
     public void onDroneReturn(UUID droneId, int slotIndex) {
         lockedSlots.remove(slotIndex);
         activeDroneTasks.remove(droneId);
@@ -303,6 +306,23 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
             }
         }
         return null;
+    }
+
+    private void updateChunkLoading() {
+        if (level == null || level.isClientSide() || !(level instanceof ServerLevel serverLevel)) return;
+        if (!chunkForced) {
+            net.minecraft.world.level.ChunkPos cp = new net.minecraft.world.level.ChunkPos(worldPosition);
+            serverLevel.setChunkForced(cp.x, cp.z, true);
+            chunkForced = true;
+        }
+    }
+
+    public void releaseChunk() {
+        if (chunkForced && level instanceof ServerLevel serverLevel) {
+            net.minecraft.world.level.ChunkPos cp = new net.minecraft.world.level.ChunkPos(worldPosition);
+            serverLevel.setChunkForced(cp.x, cp.z, false);
+            chunkForced = false;
+        }
     }
 
     private boolean hasSpaceAtTarget(BlockPos tagPos) {
@@ -384,7 +404,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
         lockedSlots.clear();
         input.read("lock_data", CompoundTag.CODEC).ifPresent(lockTag -> {
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 3; i++) {
                 if (lockTag.contains("s_m_" + i)) {
                     long most = lockTag.getLongOr("s_m_" + i, 0L);
                     long least = lockTag.getLongOr("s_l_" + i, 0L);
@@ -402,12 +422,6 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
     @Override public Packet<ClientGamePacketListener> getUpdatePacket() { return ClientboundBlockEntityDataPacket.create(this); }
     
     @Override public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tag = new CompoundTag();
-        tag.putString("name", this.name);
-        tag.putString("networkId", this.networkId);
-        CompoundTag locks = new CompoundTag();
-        for(int slot : lockedSlots.keySet()) locks.putBoolean("l_" + slot, true);
-        tag.put("locks", locks);
-        return tag;
+        return this.saveWithoutMetadata(registries);
     }
 }

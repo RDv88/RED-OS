@@ -59,13 +59,16 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         int midX = rx + rWidth / 2;
 
         if (viewMode == ViewMode.MAIN) {
-            this.addRenderableWidget(new NavButton(midX - 10, 22, 20, 12, "+", b -> {
-                viewMode = ViewMode.SELECT_SOURCE;
-                refreshButtons();
-            }, 0xFF00AA22));
+            // Hide the "+" button if we already have 9 tasks
+            if (clientTasks.size() < 9) {
+                this.addRenderableWidget(new NavButton(midX - 10, 22, 20, 12, "+", b -> {
+                    viewMode = ViewMode.SELECT_SOURCE;
+                    refreshButtons();
+                }, 0xFF00AA22));
+            }
 
             for (int i = 0; i < clientTasks.size(); i++) {
-                if (i > 10) break;
+                if (i >= 9) break;
                 int index = i;
                 SyncDroneHubTasksPayload.TaskData t = clientTasks.get(i);
                 int rowY = 52 + (i * 12);
@@ -168,12 +171,40 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
 
     @Override
     protected void renderBg(GuiGraphics g, float delta, int mouseX, int mouseY) {
-        drawChestBackground(g, 0, 0, 176, 133);
-        for (int i = 0; i < 5; i++) drawSlot(g, 43 + (i * 18), 17);
+        // Hub side background (Extended to fit player inv properly)
+        drawChestBackground(g, 0, 0, 176, 166);
+        
+        DroneStationBlockEntity be = (DroneStationBlockEntity) minecraft.level.getBlockEntity(this.menu.getPos());
+        
+        // Vertical Drone Fleet Management (Centered around x=60)
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 9; j++) drawSlot(g, 7 + j * 18, 50 + i * 18);
+            int slotY = 18 + (i * 20);
+            
+            // 1. Label
+            g.drawString(this.font, "DRONE " + (i + 1) + ":", 12, slotY + 5, 0xFF404040, false);
+            
+            // 2. Slot Box
+            drawSlot(g, 59, slotY);
+            
+            // 3. Status Text
+            String status = "§8EMPTY";
+            if (!this.menu.getSlot(i).getItem().isEmpty()) {
+                if (be != null && be.isSlotLocked(i)) {
+                    status = "§aACTIVE";
+                    // Visual Fading: Dark overlay for active drone slots
+                    g.fill(60, slotY + 1, 60 + 16, slotY + 17, 0xAA000000);
+                } else {
+                    status = "§7READY";
+                }
+            }
+            g.drawString(this.font, status, 82, slotY + 5, 0xFFFFFFFF, false);
         }
-        for (int i = 0; i < 9; i++) drawSlot(g, 7 + i * 18, 108);
+
+        // Draw Player Inventory slots background (Repositioned to match Handler)
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 9; j++) drawSlot(g, 7 + j * 18, 83 + i * 18);
+        }
+        for (int i = 0; i < 9; i++) drawSlot(g, 7 + i * 18, 141);
 
         int rx = 176 + 20; 
         int rWidth = 350;
@@ -207,7 +238,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         }
 
         g.drawString(this.font, "Drone Hub", (176 - font.width("Drone Hub"))/2, 6, 0xFF404040, false);
-        g.drawString(this.font, "Inventory", 8, 39, 0xFF404040, false);
+        g.drawString(this.font, "Inventory", 8, 72, 0xFF404040, false);
     }
 
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {}
