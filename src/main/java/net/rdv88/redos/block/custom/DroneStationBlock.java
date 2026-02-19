@@ -54,9 +54,12 @@ public class DroneStationBlock extends BaseEntityBlock {
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof DroneStationBlockEntity hub) {
+                // Release the forced chunk before removal
+                hub.releaseChunk();
+                
                 // Drop items from slots that are NOT currently locked (launched drones stay drones)
-                SimpleContainer dropInv = new SimpleContainer(5);
-                for (int i = 0; i < 5; i++) {
+                SimpleContainer dropInv = new SimpleContainer(3);
+                for (int i = 0; i < 3; i++) {
                     if (!hub.isSlotLocked(i)) {
                         dropInv.setItem(i, hub.getInventory().getItem(i).copy());
                     }

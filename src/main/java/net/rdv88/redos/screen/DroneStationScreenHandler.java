@@ -27,15 +27,16 @@ public class DroneStationScreenHandler extends AbstractContainerMenu {
         super(ModScreenHandlers.DRONE_STATION_SCREEN_HANDLER, syncId);
         this.pos = pos;
         this.blockEntity = (DroneStationBlockEntity) playerInventory.player.level().getBlockEntity(pos);
-        this.inventory = (blockEntity != null) ? blockEntity.getInventory() : new SimpleContainer(5);
+        this.inventory = (blockEntity != null) ? blockEntity.getInventory() : new SimpleContainer(3);
         
-        checkContainerSize(this.inventory, 5);
+        checkContainerSize(this.inventory, 3);
         this.inventory.startOpen(playerInventory.player);
 
-        // CORRECT HORIZONTAL SLOT POSITIONS (Matching DroneStationScreen.java)
-        for (int i = 0; i < 5; i++) {
+        // VERTICAL SLOT POSITIONS (Drone List Style)
+        for (int i = 0; i < 3; i++) {
             final int index = i;
-            this.addSlot(new Slot(inventory, i, 44 + (i * 18), 18) {
+            // x=60 (centered in label area), y=18, 38, 58
+            this.addSlot(new Slot(inventory, i, 60, 18 + (i * 20)) {
                 @Override public boolean mayPlace(ItemStack stack) { return stack.is(ModItems.DRONE_UNIT); }
                 @Override public int getMaxStackSize() { return 1; }
                 @Override public boolean mayPickup(Player player) {
@@ -57,9 +58,9 @@ public class DroneStationScreenHandler extends AbstractContainerMenu {
         if (slot != null && slot.hasItem()) {
             ItemStack originalStack = slot.getItem();
             newStack = originalStack.copy();
-            if (invSlot < 5) {
-                if (!this.moveItemStackTo(originalStack, 5, this.slots.size(), true)) return ItemStack.EMPTY;
-            } else if (!this.moveItemStackTo(originalStack, 0, 5, false)) return ItemStack.EMPTY;
+            if (invSlot < 3) {
+                if (!this.moveItemStackTo(originalStack, 3, this.slots.size(), true)) return ItemStack.EMPTY;
+            } else if (!this.moveItemStackTo(originalStack, 0, 3, false)) return ItemStack.EMPTY;
 
             if (originalStack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY);
             else slot.setChanged();
@@ -72,14 +73,14 @@ public class DroneStationScreenHandler extends AbstractContainerMenu {
     private void addPlayerInventory(Inventory playerInventory) {
         for (int i = 0; i < 3; ++i) {
             for (int l = 0; l < 9; ++l) {
-                this.addSlot(new Slot(playerInventory, l + i * 9 + 9, 8 + l * 18, 51 + i * 18));
+                this.addSlot(new Slot(playerInventory, l + i * 9 + 9, 8 + l * 18, 84 + i * 18));
             }
         }
     }
 
     private void addPlayerHotbar(Inventory playerInventory) {
         for (int i = 0; i < 9; ++i) {
-            this.addSlot(new Slot(playerInventory, i, 8 + i * 18, 109));
+            this.addSlot(new Slot(playerInventory, i, 8 + i * 18, 142));
         }
     }
 }
