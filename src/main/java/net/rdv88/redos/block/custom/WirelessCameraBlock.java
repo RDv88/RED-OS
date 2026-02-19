@@ -3,6 +3,7 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -16,6 +17,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.AttachFace;
+import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.WirelessCameraBlockEntity;
 import net.rdv88.redos.util.TechNetwork;
 import org.jetbrains.annotations.Nullable;
@@ -36,34 +38,31 @@ public class WirelessCameraBlock extends FaceAttachedHorizontalDirectionalBlock 
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack itemStack) {
         super.setPlacedBy(level, pos, state, placer, itemStack);
-        
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof WirelessCameraBlockEntity cam) {
-                // AUTO-ORIENTATION: Calculate the look angle from camera to player's eyes
                 if (placer != null) {
                     double dx = placer.getX() - (pos.getX() + 0.5);
                     double dy = (placer.getY() + placer.getEyeHeight()) - (pos.getY() + 0.5);
                     double dz = placer.getZ() - (pos.getZ() + 0.5);
-                    
-                    // Minecraft rotation math
                     float yaw = (float) (Math.atan2(dz, dx) * (180.0 / Math.PI)) - 90.0f;
                     float pitch = (float) (-(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)) * (180.0 / Math.PI)));
-                    
                     cam.setRotation(yaw, pitch);
                 }
-                
                 TechNetwork.registerNode(level, pos, cam.getNetworkId(), cam.getCameraName(), TechNetwork.NodeType.CAMERA, cam.getSerial());
             }
         }
     }
 
     @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, net.minecraft.world.entity.player.Player player) {
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             TechNetwork.removeNode(level, pos);
+            if (!moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.WIRELESS_IP_CAMERA));
+            }
         }
-        return super.playerWillDestroy(level, pos, state, player);
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
 
     @Nullable

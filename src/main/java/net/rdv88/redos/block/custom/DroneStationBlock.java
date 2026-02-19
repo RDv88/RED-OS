@@ -3,6 +3,7 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -24,6 +25,7 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.DroneStationBlockEntity;
 import net.rdv88.redos.block.entity.ModBlockEntities;
 import net.rdv88.redos.util.TechNetwork;
@@ -48,12 +50,11 @@ public class DroneStationBlock extends BaseEntityBlock {
     }
 
     @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof DroneStationBlockEntity hub) {
-                // ANTI-DUPLICATION LOGIC:
-                // Only drop items from slots that are NOT currently locked (launched)
+                // Drop items from slots that are NOT currently locked (launched drones stay drones)
                 SimpleContainer dropInv = new SimpleContainer(5);
                 for (int i = 0; i < 5; i++) {
                     if (!hub.isSlotLocked(i)) {
@@ -62,9 +63,14 @@ public class DroneStationBlock extends BaseEntityBlock {
                 }
                 Containers.dropContents(level, pos, dropInv);
             }
+            // 1. Unregister from Network
             TechNetwork.removeNode(level, pos);
+            // 2. Drop the Hub itself
+            if (!moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.DRONE_STATION));
+            }
         }
-        return super.playerWillDestroy(level, pos, state, player);
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
 
     @Override protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
