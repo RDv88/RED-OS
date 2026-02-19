@@ -3,6 +3,7 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -19,6 +20,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.SmartMotionSensorBlockEntity;
 import net.rdv88.redos.util.TechNetwork;
 import org.jetbrains.annotations.Nullable;
@@ -50,34 +52,34 @@ public class SmartMotionSensorBlock extends FaceAttachedHorizontalDirectionalBlo
     }
 
     @Override
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
+        if (!level.isClientSide()) {
+            TechNetwork.removeNode(level, pos);
+            if (!moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.SMART_MOTION_SENSOR));
+            }
+        }
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
+    }
+
+    @Override
     protected boolean isSignalSource(BlockState state) { return true; }
 
-    // Krachtig signaal naar alle aangrenzende blokken/draad
     @Override
     protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
         return state.getValue(POWERED) ? 15 : 0;
     }
 
-    // Direct signaal (voor deuren en mechanismen) in alle richtingen
     @Override
     protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
         return state.getValue(POWERED) ? 15 : 0;
     }
 
     public void updateNeighbors(BlockState state, Level level, BlockPos pos) {
-        // Update alle 6 richtingen zodat deuren altijd reageren
         level.updateNeighborsAt(pos, this);
         for (Direction dir : Direction.values()) {
             level.updateNeighborsAt(pos.relative(dir), this);
         }
-    }
-
-    @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, net.minecraft.world.entity.player.Player player) {
-        if (!level.isClientSide()) {
-            TechNetwork.removeNode(level, pos);
-        }
-        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Nullable

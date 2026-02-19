@@ -3,8 +3,7 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -29,13 +28,11 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.QuantumPorterBlockEntity;
-import net.rdv88.redos.item.HandheldDeviceItem;
 import net.rdv88.redos.util.TechNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Arrays;
 
 public class QuantumPorterBlock extends HorizontalDirectionalBlock implements EntityBlock {
     public static final MapCodec<QuantumPorterBlock> CODEC = simpleCodec(QuantumPorterBlock::new);
@@ -60,7 +57,7 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
     protected MapCodec<? extends HorizontalDirectionalBlock> codec() { return CODEC; }
 
     @Override
-    protected VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
+    public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         if (state.getValue(HALF) == DoubleBlockHalf.LOWER) return BASE_SHAPE;
         return switch (state.getValue(FACING)) {
             case SOUTH -> SHAPE_SOUTH;
@@ -75,17 +72,34 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
         level.setBlock(pos.above(), state.setValue(HALF, DoubleBlockHalf.UPPER), 3);
         if (!level.isClientSide()) {
             BlockEntity lowerBE = level.getBlockEntity(pos);
-            BlockEntity upperBE = level.getBlockEntity(pos.above());
             String customName = itemStack.has(net.minecraft.core.component.DataComponents.CUSTOM_NAME) ? itemStack.getHoverName().getString() : "Quantum Porter";
 
             if (lowerBE instanceof QuantumPorterBlockEntity porter) {
                 porter.setName(customName);
                 TechNetwork.registerNode(level, pos, porter.getNetworkId(), porter.getName(), TechNetwork.NodeType.PORTER, porter.getSerial());
             }
-            if (upperBE instanceof QuantumPorterBlockEntity porter) {
-                porter.setName(customName);
+        }
+    }
+
+    @Override
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
+        if (!level.isClientSide()) {
+            DoubleBlockHalf half = state.getValue(HALF);
+            BlockPos dbPos = (half == DoubleBlockHalf.LOWER) ? pos : pos.below();
+            
+            TechNetwork.removeNode(level, dbPos);
+
+            BlockPos otherPos = (half == DoubleBlockHalf.LOWER) ? pos.above() : pos.below();
+            BlockState otherState = level.getBlockState(otherPos);
+            if (otherState.is(this) && otherState.getValue(HALF) != half) {
+                level.setBlock(otherPos, Blocks.AIR.defaultBlockState(), 35);
+            }
+
+            if (half == DoubleBlockHalf.LOWER && !moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.QUANTUM_PORTER));
             }
         }
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
 
     @Override
@@ -110,41 +124,6 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
         }
         BlockState below = level.getBlockState(pos.below());
         return below.is(this) && below.getValue(HALF) == DoubleBlockHalf.LOWER;
-    }
-
-    @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-        if (!level.isClientSide()) {
-            DoubleBlockHalf half = state.getValue(HALF);
-            if (half == DoubleBlockHalf.UPPER) {
-                BlockPos lowerPos = pos.below();
-                BlockState lowerState = level.getBlockState(lowerPos);
-                if (lowerState.is(this) && lowerState.getValue(HALF) == DoubleBlockHalf.LOWER) {
-                    level.destroyBlock(lowerPos, !player.isCreative(), player);
-                }
-            } else {
-                BlockPos upperPos = pos.above();
-                BlockState upperState = level.getBlockState(upperPos);
-                if (upperState.is(this) && upperState.getValue(HALF) == DoubleBlockHalf.UPPER) {
-                    level.setBlock(upperPos, Blocks.AIR.defaultBlockState(), 35);
-                    level.levelEvent(player, 2001, upperPos, Block.getId(upperState));
-                }
-            }
-            
-            BlockPos entityPos = (half == DoubleBlockHalf.LOWER) ? pos : pos.below();
-            TechNetwork.removeNode(level, entityPos);
-        }
-        return super.playerWillDestroy(level, pos, state, player);
-    }
-
-    @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (level.isClientSide()) {
-            // Client simply sends a request to open the GUI. 
-            // The Server will perform the "RAM check" and respond with the correct status.
-            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.RequestPorterGuiPayload(pos));
-        }
-        return InteractionResult.SUCCESS;
     }
 
     @Override
@@ -185,6 +164,15 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
                 }
             }
         }
+    }
+
+    @Override
+    public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (level.isClientSide()) {
+            BlockPos targetPos = (state.getValue(HALF) == DoubleBlockHalf.LOWER) ? pos : pos.below();
+            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.RequestPorterGuiPayload(targetPos));
+        }
+        return InteractionResult.SUCCESS;
     }
 
     @Nullable

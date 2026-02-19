@@ -3,8 +3,8 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.IOTagBlockEntity;
 import net.rdv88.redos.block.entity.ModBlockEntities;
 import net.rdv88.redos.util.TechNetwork;
@@ -29,7 +30,6 @@ import org.jetbrains.annotations.Nullable;
 public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implements EntityBlock {
     public static final MapCodec<IOTagBlock> CODEC = simpleCodec(IOTagBlock::new);
 
-    // Hitbox voor rechtopstaand plaatje (aan de rand van het blok)
     protected static final VoxelShape NORTH_SHAPE = Block.box(4, 4, 0, 12, 12, 1);
     protected static final VoxelShape SOUTH_SHAPE = Block.box(4, 4, 15, 12, 12, 16);
     protected static final VoxelShape EAST_SHAPE = Block.box(15, 4, 4, 16, 12, 12);
@@ -48,9 +48,10 @@ public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implement
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         return switch (state.getValue(FACING)) {
-            case SOUTH -> SOUTH_SHAPE;
-            case EAST -> EAST_SHAPE;
-            case WEST -> WEST_SHAPE;
+            case NORTH -> SOUTH_SHAPE;
+            case SOUTH -> NORTH_SHAPE;
+            case WEST -> EAST_SHAPE;
+            case EAST -> WEST_SHAPE;
             default -> NORTH_SHAPE;
         };
     }
@@ -67,11 +68,14 @@ public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implement
     }
 
     @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             TechNetwork.removeNode(level, pos);
+            if (!moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.IO_TAG));
+            }
         }
-        return super.playerWillDestroy(level, pos, state, player);
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
 
     @Override
@@ -110,10 +114,8 @@ public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implement
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide() ? null : (level1, pos1, state1, blockEntity) -> {
-            if (blockEntity instanceof IOTagBlockEntity tag) {
-                IOTagBlockEntity.tick(level1, pos1, state1, tag);
-            }
+        return level.isClientSide() ? null : (level1, pos1, state1, be) -> {
+            if (be instanceof IOTagBlockEntity tag) IOTagBlockEntity.tick(level1, pos1, state1, tag);
         };
     }
 }

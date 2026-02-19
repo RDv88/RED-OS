@@ -3,6 +3,7 @@ package net.rdv88.redos.block.custom;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -19,6 +20,8 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.rdv88.redos.block.ModBlocks;
+import net.rdv88.redos.block.entity.ModBlockEntities;
 import net.rdv88.redos.block.entity.RemoteRedstoneTriggerBlockEntity;
 import net.rdv88.redos.util.TechNetwork;
 import org.jetbrains.annotations.Nullable;
@@ -41,13 +44,23 @@ public class RemoteRedstoneTriggerBlock extends FaceAttachedHorizontalDirectiona
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack itemStack) {
         super.setPlacedBy(level, pos, state, placer, itemStack);
-        // INSTANT BIMP REGISTRATION
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof RemoteRedstoneTriggerBlockEntity trigger) {
                 TechNetwork.registerNode(level, pos, trigger.getNetworkId(), trigger.getName(), TechNetwork.NodeType.TRIGGER, trigger.getSerial());
             }
         }
+    }
+
+    @Override
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
+        if (!level.isClientSide()) {
+            TechNetwork.removeNode(level, pos);
+            if (!moved) {
+                Block.popResource(level, pos, new ItemStack(ModBlocks.REMOTE_REDSTONE_TRIGGER));
+            }
+        }
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
 
     @Override
@@ -97,8 +110,8 @@ public class RemoteRedstoneTriggerBlock extends FaceAttachedHorizontalDirectiona
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide() ? null : (tType, pos, tState, blockEntity) -> {
-            if (blockEntity instanceof RemoteRedstoneTriggerBlockEntity be) RemoteRedstoneTriggerBlockEntity.tick(level, pos, tState, be);
+        return level.isClientSide() ? null : (level1, pos1, state1, be) -> {
+            if (be instanceof RemoteRedstoneTriggerBlockEntity trigger) RemoteRedstoneTriggerBlockEntity.tick(level1, pos1, state1, trigger);
         };
     }
 }

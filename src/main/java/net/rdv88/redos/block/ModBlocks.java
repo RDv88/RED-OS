@@ -11,6 +11,7 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.PushReaction;
 import net.rdv88.redos.Redos;
 import net.rdv88.redos.block.custom.*;
 
@@ -19,22 +20,31 @@ import java.util.function.Function;
 public class ModBlocks {
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("redos");
 
+    // WATERPROOF BLOCKS (PushReaction.BLOCK prevents destruction by liquids/pistons easily)
     public static final Block WIRELESS_IP_CAMERA = registerBlock("wireless_ip_camera",
-            settings -> new WirelessCameraBlock(settings.strength(1.5f).noOcclusion()));
+            settings -> new WirelessCameraBlock(settings.strength(1.5f).noOcclusion().pushReaction(PushReaction.BLOCK)));
+    
+    public static final Block SHORT_RANGE_TRANSMITTER = registerBlock("short_range_transmitter",
+            settings -> new ShortRangeTransmitterBlock(settings.strength(2.0f).noOcclusion().pushReaction(PushReaction.BLOCK)));
+    
+    public static final Block LONG_RANGE_TRANSMITTER = registerBlock("long_range_transmitter",
+            settings -> new LongRangeTransmitterBlock(settings.strength(2.0f).noOcclusion().pushReaction(PushReaction.BLOCK)));
+    
+    public static final Block QUANTUM_PORTER = registerBlock("quantum_porter",
+            settings -> new QuantumPorterBlock(settings.strength(15.0f).requiresCorrectToolForDrops().noOcclusion().pushReaction(PushReaction.BLOCK)));
+    
+    public static final Block DRONE_STATION = registerBlock("drone_station",
+            settings -> new DroneStationBlock(settings.strength(3.0f).noOcclusion().pushReaction(PushReaction.BLOCK)));
+
+    // FRAGILE BLOCKS (Will be washed away by water)
     public static final Block SMART_MOTION_SENSOR = registerBlock("smart_motion_sensor",
             settings -> new SmartMotionSensorBlock(settings.strength(1.5f).noOcclusion()));
-    public static final Block SHORT_RANGE_TRANSMITTER = registerBlock("short_range_transmitter",
-            settings -> new ShortRangeTransmitterBlock(settings.strength(2.0f).noOcclusion()));
-    public static final Block LONG_RANGE_TRANSMITTER = registerBlock("long_range_transmitter",
-            settings -> new LongRangeTransmitterBlock(settings.strength(2.0f).noOcclusion()));
+    
     public static final Block REMOTE_REDSTONE_TRIGGER = registerBlock("remote_redstone_trigger",
             settings -> new RemoteRedstoneTriggerBlock(settings.strength(1.5f).noOcclusion()));
-    public static final Block QUANTUM_PORTER = registerBlock("quantum_porter",
-            settings -> new QuantumPorterBlock(settings.strength(15.0f).requiresCorrectToolForDrops().noOcclusion()));
+    
     public static final Block IO_TAG = registerBlock("io_tag",
             settings -> new IOTagBlock(settings.strength(1.0f).noOcclusion()));
-    public static final Block DRONE_STATION = registerBlock("drone_station",
-            settings -> new DroneStationBlock(settings.strength(3.0f).noOcclusion()));
 
     private static Block registerBlock(String name, Function<BlockBehaviour.Properties, Block> factory) {
         Identifier id = Identifier.fromNamespaceAndPath(Redos.MOD_ID, name);
