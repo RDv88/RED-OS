@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "PAP",
+    "AKA",
+    "PRP"
+  ],
+  "key": {
+    "P": "minecraft:polished_blackstone",
+    "A": "minecraft:amethyst_shard",
+    "K": "minecraft:clock",
+    "R": "minecraft:redstone_torch"
+  },
+  "result": {
+    "id": "redos:drone_unit",
+    "count": 1
+  }
+}

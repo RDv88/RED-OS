@@ -4,7 +4,7 @@
       "id": "redos:handheld_device"
     },
     "title": {
-      "text": "Redos"
+      "text": "RED-OS"
     },
     "description": {
       "text": "You have mastered time and energy."
@@ -42,9 +42,7 @@
       "redos:long_range_transmitter",
       "redos:wireless_ip_camera",
       "redos:smart_motion_sensor",
-                  "redos:remote_redstone_trigger"
-                ]
-            
-        }
-      }
-      
+      "redos:remote_redstone_trigger"
+    ]
+  }
+}

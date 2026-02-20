@@ -73,7 +73,18 @@ public class HandheldAppHighTech implements HandheldApp {
             int index = i + scrollOffset; if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 10, 16, device, b -> { selectedPos = device.pos(); HandheldScreen.refreshApp(); }));
+            
+            // 1. Device Row
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 28, 16, device, b -> { 
+                selectedPos = device.pos(); 
+                HandheldScreen.refreshApp(); 
+            }));
+
+            // 2. NEW: "E" (Edit Config) Button
+            adder.add(new HandheldScreen.NavButton(sx + w - 22, rowY + 1, 14, 14, "E", b -> {
+                selectedPos = device.pos();
+                HandheldScreen.refreshApp();
+            }, 0xFF0055AA));
         }
     }
 

@@ -57,7 +57,10 @@
   "rewards": {
     "recipes": [
       "redos:plasma_pulse_disintegrator",
-      "redos:quantum_porter"
+      "redos:quantum_porter",
+      "redos:drone_station",
+      "redos:io_tag",
+      "redos:drone_unit"
     ]
   }
 }

@@ -272,7 +272,7 @@ public class ModMessages {
             context.server().execute(() -> {
                 net.minecraft.world.level.block.entity.BlockEntity be = context.player().level().getBlockEntity(payload.pos());
                 if (be instanceof SmartMotionSensorBlockEntity sensor) {
-                    sensor.setSettings(payload.detectPlayers(), payload.detectMobs(), payload.detectAnimals(), payload.detectVillagers(), payload.range(), payload.holdTime());
+                    sensor.setSettings(payload.detectPlayers(), payload.detectMobs(), payload.detectAnimals(), payload.detectVillagers(), payload.alertsEnabled(), payload.range(), payload.holdTime());
                     ServerPlayNetworking.send(context.player(), new ActionFeedbackPayload("§aSettings Updated", false));
                 }
             });

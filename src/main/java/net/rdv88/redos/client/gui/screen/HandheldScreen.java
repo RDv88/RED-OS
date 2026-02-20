@@ -201,6 +201,10 @@ public class HandheldScreen extends Screen {
         g.fill(screenX, screenY + SCREEN_HEIGHT - 17, screenX + SCREEN_WIDTH, screenY + SCREEN_HEIGHT, 0xFF220000); 
         g.renderOutline(screenX, screenY, SCREEN_WIDTH, SCREEN_HEIGHT, 0xFF440000); 
 
+        if (currentApp != null) {
+            currentApp.preRender(mouseX, mouseY, delta, screenX, screenY, SCREEN_WIDTH, SCREEN_HEIGHT);
+        }
+
         super.render(g, mouseX, mouseY, delta);
 
         org.joml.Matrix3x2f m1 = new org.joml.Matrix3x2f();
@@ -315,8 +319,14 @@ public class HandheldScreen extends Screen {
             drawMarqueeText(g, displayName, getX() + 4, getY() + 4, 105, isHovered() ? 0xFFFFFFFF : 0xFFAA0000, true);
             
             if (!device.type().equals("PROFILE")) {
-                String dist = String.format("[ %dm ]", (int)Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(device.pos())));
-                g.drawString(Minecraft.getInstance().font, dist, getX() + width - 65, getY() + 4, 0xFF666666, false);
+                double distance = Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(device.pos()));
+                String distStr;
+                if (distance >= 1000) {
+                    distStr = String.format("[ %.1fkm ]", distance / 1000.0);
+                } else {
+                    distStr = String.format("[ %dm ]", (int)distance);
+                }
+                g.drawString(Minecraft.getInstance().font, distStr, getX() + width - 65, getY() + 4, 0xFF666666, false);
                 int blocks = (device.signalStrength() / 20) + 1;
                 for (int i = 0; i < 5; i++) g.fill(getX() + width - 30 + (i * 5), getY() + 5, getX() + width - 27 + (i * 5), getY() + 11, (i < blocks) ? 0xFFAA0000 : 0xFF220000);
             } else {

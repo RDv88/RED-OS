@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    " A ",
+    "BKB",
+    " R "
+  ],
+  "key": {
+    "A": "minecraft:amethyst_shard",
+    "B": "minecraft:blackstone",
+    "K": "minecraft:clock",
+    "R": "minecraft:redstone_torch"
+  },
+  "result": {
+    "id": "redos:io_tag",
+    "count": 4
+  }
+}

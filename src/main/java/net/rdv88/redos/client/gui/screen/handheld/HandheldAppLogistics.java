@@ -38,6 +38,8 @@ public class HandheldAppLogistics implements HandheldApp {
 
     @Override
     public void init(int screenX, int screenY, int width, int height, WidgetAdder adder) {
+        if (!net.rdv88.redos.util.PermissionCache.hasHighTechAccess()) return;
+
         SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
         if (selected == null && currentView == View.CONFIG) currentView = View.MENU;
 
@@ -51,11 +53,16 @@ public class HandheldAppLogistics implements HandheldApp {
     }
 
     private void setupMenu(int sx, int sy, int w, WidgetAdder adder) {
-        int btnW = w - 40;
-        int btnX = sx + 20;
-        adder.add(new HandheldScreen.NavButton(btnX, sy + 50, btnW, 20, "1. IO TAGS", b -> { currentView = View.TAG_LIST; scrollOffset = 0; HandheldScreen.refreshApp(); }, 0xFFAA0000));
-        adder.add(new HandheldScreen.NavButton(btnX, sy + 80, btnW, 20, "2. DRONE HUBS", b -> { currentView = View.HUB_LIST; scrollOffset = 0; HandheldScreen.refreshApp(); }, 0xFFAA0000));
-        adder.add(new HandheldScreen.NavButton(btnX, sy + 110, btnW, 20, "3. FLEET STATUS", b -> { currentView = View.FLEET_STATUS; HandheldScreen.refreshApp(); }, 0xFFAA0000));
+        int screenCX = sx + w / 2;
+        int size = 36;
+        int gap = 20;
+        int rowWidth = (3 * size + 2 * gap);
+        int startX = screenCX - (rowWidth / 2);
+        int rowY = sy + 60;
+
+        adder.add(new AppButton(startX, rowY, size, size, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.NAME_TAG), "IO Tags", View.TAG_LIST));
+        adder.add(new AppButton(startX + size + gap, rowY, size, size, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.CHEST_MINECART), "Drone Hubs", View.HUB_LIST));
+        adder.add(new AppButton(startX + (size + gap) * 2, rowY, size, size, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.MAP), "Fleet Status", View.FLEET_STATUS));
     }
 
     private void populateList(int sx, int sy, int w, WidgetAdder adder, String typeFilter) {
@@ -75,11 +82,20 @@ public class HandheldAppLogistics implements HandheldApp {
             if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 10, 16, device, b -> {
+            
+            // 1. Device Row
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 28, 16, device, b -> {
                 selectedPos = device.pos(); 
                 currentView = View.CONFIG;
                 HandheldScreen.refreshApp();
             }));
+
+            // 2. NEW: "E" (Edit Config) Button
+            adder.add(new HandheldScreen.NavButton(sx + w - 22, rowY + 1, 14, 14, "E", b -> {
+                selectedPos = device.pos();
+                currentView = View.CONFIG;
+                HandheldScreen.refreshApp();
+            }, 0xFF0055AA));
         }
     }
 
@@ -99,15 +115,37 @@ public class HandheldAppLogistics implements HandheldApp {
 
     @Override
     public Optional<GuiEventListener> getInitialFocus() {
-        return currentView == View.CONFIG ? Optional.ofNullable(nameInput) : Optional.empty();
+        return (net.rdv88.redos.util.PermissionCache.hasHighTechAccess() && currentView == View.CONFIG) ? Optional.ofNullable(nameInput) : Optional.empty();
     }
 
     @Override
-    public boolean isEditMode() { return currentView == View.CONFIG; }
+    public boolean isEditMode() { return net.rdv88.redos.util.PermissionCache.hasHighTechAccess() && currentView == View.CONFIG; }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
         int cx = sx + w / 2;
+        int cy = sy + h / 2;
+
+        if (!net.rdv88.redos.util.PermissionCache.hasHighTechAccess()) {
+            g.drawCenteredString(font, "§c§lACCESS DENIED", cx, cy - 30, 0xFFFFFFFF);
+            g.fill(cx - 60, cy - 18, cx + 60, cy - 17, 0xFFAA0000);
+            
+            String[] message = {
+                "§7Fleet protocols are",
+                "§7currently §4LOCKED§7.",
+                "",
+                "§7Unlock the achievement",
+                "§e'High-Tech' §7to initialize."
+            };
+            
+            int ty = cy - 5;
+            for (String line : message) {
+                g.drawCenteredString(font, line, cx, ty, 0xFFFFFFFF);
+                ty += 10;
+            }
+            return;
+        }
+
         SyncHandheldDataPayload.DeviceEntry selected = getSelectedDevice();
         
         switch (currentView) {
@@ -193,4 +231,41 @@ public class HandheldAppLogistics implements HandheldApp {
     }
     
     public static void clearState() { currentView = View.MENU; selectedPos = null; scrollOffset = 0; }
+
+    private void drawMarqueeText(GuiGraphics g, String text, int x, int y, int width, int color, float scale) {
+        int textWidth = (int)(font.width(text) * scale);
+        double time = System.currentTimeMillis() / 1500.0;
+        int offset = 0;
+        if (textWidth > width) {
+            int maxOffset = textWidth - width;
+            offset = (int) ((Math.sin(time * 2.0) * 0.5 + 0.5) * maxOffset);
+        } else { x = x + (width - textWidth) / 2; }
+        org.joml.Matrix3x2f oldMatrix = new org.joml.Matrix3x2f();
+        g.pose().get(oldMatrix); g.pose().translate(x, y); g.pose().scale(scale, scale);
+        if (textWidth > width) g.enableScissor(x, y, x + width, y + 10);
+        g.drawString(font, text, (int)(- (offset / scale)), 0, color, false);
+        if (textWidth > width) g.disableScissor();
+        g.pose().set(oldMatrix);
+    }
+
+    private class AppButton extends net.minecraft.client.gui.components.Button {
+        private final net.minecraft.world.item.ItemStack icon; 
+        private final String label;
+        private final View targetView;
+
+        public AppButton(int x, int y, int w, int h, net.minecraft.world.item.ItemStack i, String l, View v) { 
+            super(x, y, w, h, Component.empty(), b -> { 
+                currentView = v; scrollOffset = 0; HandheldScreen.refreshApp(); 
+            }, DEFAULT_NARRATION); 
+            this.icon = i; this.label = l; this.targetView = v;
+        }
+
+        @Override public void onPress(net.minecraft.client.input.InputWithModifiers m) { this.onPress.onPress(this); }
+        @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
+            g.fill(getX(), getY(), getX() + width, getY() + height, isHovered() ? 0xFF441111 : 0xFF220505);
+            g.renderOutline(getX(), getY(), width, height, isHovered() ? 0xFFFF0000 : 0xFF660000);
+            g.renderItem(icon, getX() + (width - 16) / 2, getY() + (height - 16) / 2);
+            drawMarqueeText(g, label, getX() - 10, getY() + height + 4, width + 20, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, 0.85f);
+        }
+    }
 }

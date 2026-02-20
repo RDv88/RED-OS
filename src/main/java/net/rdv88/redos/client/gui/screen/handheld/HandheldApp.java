@@ -12,6 +12,7 @@ public interface HandheldApp {
     }
 
     void init(int screenX, int screenY, int width, int height, WidgetAdder adder);
+    default void preRender(int mouseX, int mouseY, float delta, int screenX, int screenY, int width, int height) {}
     void render(GuiGraphics g, int mouseX, int mouseY, float delta, int screenX, int screenY, int width, int height);
     void tick();
     

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "ABA",
+    "LKL",
+    "SRS"
+  ],
+  "key": {
+    "A": "minecraft:amethyst_shard",
+    "B": "minecraft:black_stained_glass",
+    "L": "minecraft:comparator",
+    "K": "minecraft:clock",
+    "S": "minecraft:blackstone",
+    "R": "minecraft:redstone_torch"
+  },
+  "result": {
+    "id": "redos:drone_station",
+    "count": 1
+  }
+}

@@ -69,8 +69,21 @@ public class HandheldAppCamera implements HandheldApp {
             int index = i + scrollOffset; if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 50, 16, device, b -> { selectedPos = device.pos(); HandheldScreen.refreshApp(); }));
-            adder.add(new HandheldScreen.NavButton(sx + w - 42, rowY + 1, 35, 14, "VIEW", b -> {
+            
+            // 1. Device Row
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 68, 16, device, b -> { 
+                selectedPos = device.pos(); 
+                HandheldScreen.refreshApp(); 
+            }));
+
+            // 2. NEW: "E" (Edit Config) Button
+            adder.add(new HandheldScreen.NavButton(sx + w - 62, rowY + 1, 14, 14, "E", b -> {
+                selectedPos = device.pos();
+                HandheldScreen.refreshApp();
+            }, 0xFF0055AA));
+
+            // 3. "VIEW" Button
+            adder.add(new HandheldScreen.NavButton(sx + w - 45, rowY + 1, 40, 14, "VIEW", b -> {
                 HandheldScreen.setSelectedDeviceName(device.name());
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new RequestCameraViewPayload(device.pos()));
             }, 0xFF880000));

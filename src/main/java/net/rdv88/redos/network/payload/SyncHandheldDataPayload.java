@@ -24,7 +24,7 @@ public record SyncHandheldDataPayload(List<DeviceEntry> devices) implements Cust
 
     public record DeviceEntry(BlockPos pos, String id, String name, String type, int signalStrength, String connectionMode, 
                               boolean detectPlayers, boolean detectMobs, boolean detectAnimals, boolean detectVillagers,
-                              int range, int holdTime, int itemCount, int freeSpace) {
+                              boolean alertsEnabled, int range, int holdTime, int itemCount, int freeSpace) {
         
         // Split into two sub-codecs to stay under the 12-field limit of StreamCodec.composite
         public static final StreamCodec<RegistryFriendlyByteBuf, DeviceEntry> CODEC = StreamCodec.of(
@@ -39,6 +39,7 @@ public record SyncHandheldDataPayload(List<DeviceEntry> devices) implements Cust
                 ByteBufCodecs.BOOL.encode(buf, entry.detectMobs);
                 ByteBufCodecs.BOOL.encode(buf, entry.detectAnimals);
                 ByteBufCodecs.BOOL.encode(buf, entry.detectVillagers);
+                ByteBufCodecs.BOOL.encode(buf, entry.alertsEnabled);
                 ByteBufCodecs.VAR_INT.encode(buf, entry.range);
                 ByteBufCodecs.VAR_INT.encode(buf, entry.holdTime);
                 ByteBufCodecs.VAR_INT.encode(buf, entry.itemCount);
@@ -51,6 +52,7 @@ public record SyncHandheldDataPayload(List<DeviceEntry> devices) implements Cust
                 ByteBufCodecs.STRING_UTF8.decode(buf),
                 ByteBufCodecs.VAR_INT.decode(buf),
                 ByteBufCodecs.STRING_UTF8.decode(buf),
+                ByteBufCodecs.BOOL.decode(buf),
                 ByteBufCodecs.BOOL.decode(buf),
                 ByteBufCodecs.BOOL.decode(buf),
                 ByteBufCodecs.BOOL.decode(buf),

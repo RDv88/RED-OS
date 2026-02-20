@@ -39,17 +39,17 @@ public class Redos implements ModInitializer {
         // Server-side response receiver (Handshake Enforcement V1.0.5)
         ServerLoginNetworking.registerGlobalReceiver(ModMessages.VERSION_CHECK_ID, (server, handler, understood, buf, synchronizer, sender) -> {
             if (!understood) {
-                handler.disconnect(net.minecraft.network.chat.Component.literal("§c[RED-OS] Error: Protocol mismatch. Please install Redos mod."));
+                handler.disconnect(net.minecraft.network.chat.Component.literal("§c[RED-OS] Error: Protocol mismatch. Please install RED-OS mod."));
                 return;
             }
             
             if (buf.readableBytes() == 0) {
                 LOGGER.warn("RED-OS: [SECURITY] Kicking player due to outdated version (pre-1.0.5)");
                 handler.disconnect(net.minecraft.network.chat.Component.literal(
-                    "§e§lRedos Connection Refused\n\n" +
-                    "§7An outdated version was detected!\n" +
-                    "§8» §7Your System:   §cPRE-SECURITY (Unknown Version)\n\n" +
-                    "§fPlease update your mod to V" + VERSION + " to gain access."
+                    "§c§lRED-OS Update Center\n\n" +
+                    "§fInitialization paused. Your system needs a quick update!\n" +
+                    "§8» §7Local Engine:  §cPRE-SECURITY (Unknown Version)\n\n" +
+                    "§7Please update your mod to V" + VERSION + " to gain access."
                 ));
                 return;
             }
@@ -60,11 +60,11 @@ public class Redos implements ModInitializer {
             if (!clientVersion.equalsIgnoreCase(serverVersion)) {
                 LOGGER.warn("RED-OS: [SECURITY] Kicking player due to version mismatch. Server: {}, Client: {}", serverVersion, clientVersion);
                 handler.disconnect(net.minecraft.network.chat.Component.literal(
-                    "§e§lRedos Connection Refused\n\n" +
-                    "§7A version discrepancy was detected!\n" +
-                    "§8» §7Server System: §aV" + serverVersion + "\n" +
-                    "§8» §7Your System:   §cV" + clientVersion + "\n\n" +
-                    "§fAccess denied. Please update your local engine."
+                    "§c§lRED-OS Update Center\n\n" +
+                    "§fInitialization paused. Your system needs a quick update!\n" +
+                    "§8» §7Remote Host:   §aV" + serverVersion + "\n" +
+                    "§8» §7Local Engine:  §cV" + clientVersion + "\n\n" +
+                    "§7To join the network, please install the latest build."
                 ));
             }
         });
