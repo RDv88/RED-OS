@@ -47,9 +47,9 @@ public class Redos implements ModInitializer {
                 LOGGER.warn("RED-OS: [SECURITY] Kicking player due to outdated version (pre-1.0.5)");
                 handler.disconnect(net.minecraft.network.chat.Component.literal(
                     "§c§lRED-OS Update Center\n\n" +
-                    "§fInitialization paused. Your system needs a quick update!\n" +
-                    "§8» §7Local Engine:  §cPRE-SECURITY (Unknown Version)\n\n" +
-                    "§7Please update your mod to V" + VERSION + " to gain access."
+                    "§fInitialization paused.\n§fYour system needs a quick update!\n\n" +
+                    "§8» §7Local Engine:  §cPRE-SECURITY (Unknown)\n\n" +
+                    "§7Please update your mod to V" + VERSION + "\n§7to gain access."
                 ));
                 return;
             }
@@ -61,10 +61,10 @@ public class Redos implements ModInitializer {
                 LOGGER.warn("RED-OS: [SECURITY] Kicking player due to version mismatch. Server: {}, Client: {}", serverVersion, clientVersion);
                 handler.disconnect(net.minecraft.network.chat.Component.literal(
                     "§c§lRED-OS Update Center\n\n" +
-                    "§fInitialization paused. Your system needs a quick update!\n" +
+                    "§fInitialization paused.\n§fYour system needs a quick update!\n\n" +
                     "§8» §7Remote Host:   §aV" + serverVersion + "\n" +
                     "§8» §7Local Engine:  §cV" + clientVersion + "\n\n" +
-                    "§7To join the network, please install the latest build."
+                    "§7To join the network,\n§7please install the latest build."
                 ));
             }
         });
