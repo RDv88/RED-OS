@@ -59,9 +59,9 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         int midX = rx + rWidth / 2;
 
         if (viewMode == ViewMode.MAIN) {
-            // Hide the "+" button if we already have 9 tasks
+            // Right-aligned ADD TASK button in the header bar
             if (clientTasks.size() < 9) {
-                this.addRenderableWidget(new NavButton(midX - 10, 22, 20, 12, "+", b -> {
+                this.addRenderableWidget(new NavButton(rx + rWidth - 75, 8, 65, 12, "[+] ADD TASK", b -> {
                     viewMode = ViewMode.SELECT_SOURCE;
                     refreshButtons();
                 }, 0xFF00AA22));
@@ -71,7 +71,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
                 if (i >= 9) break;
                 int index = i;
                 SyncDroneHubTasksPayload.TaskData t = clientTasks.get(i);
-                int rowY = 52 + (i * 12);
+                int rowY = 40 + (i * 12);
                 
                 this.addRenderableWidget(new RowButton(rx + 10, rowY, rWidth - 55, 11, t, b -> {
                     ClientPlayNetworking.send(new ConfigureDroneHubPayload(this.menu.getPos(), "TOGGLE_TASK", index, BlockPos.ZERO, BlockPos.ZERO, 0));
@@ -197,7 +197,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
                     status = "§7READY";
                 }
             }
-            g.drawString(this.font, status, 82, slotY + 5, 0xFFFFFFFF, false);
+            g.drawString(this.font, status, 80, slotY + 5, 0xFFFFFFFF, false);
         }
 
         // Draw Player Inventory slots background (Repositioned to match Handler)
@@ -217,10 +217,10 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         g.fill(rx + 10, 20, rx + rWidth - 10, 21, 0xFF440000);
 
         if (viewMode == ViewMode.MAIN) {
-            g.drawString(this.font, "ACTIVE LOGISTICS MISSIONS:", rx + 10, 25, 0xFFAA0000, false);
-            int headerY = 36;
+            int headerY = 25;
             g.drawString(this.font, "§cIN - SOURCE", rx + 12, headerY, 0xFFFFFFFF, false);
-            g.drawString(this.font, "§cDESTINATION (FREE)", rx + 105, headerY, 0xFFFFFFFF, false);
+            g.drawString(this.font, "§cDESTINATION", rx + 105, headerY, 0xFFFFFFFF, false);
+            g.drawString(this.font, "§c(FREE)", rx + 190, headerY, 0xFFFFFFFF, false);
             g.drawString(this.font, "§cPRIO", rx + 245, headerY, 0xFFFFFFFF, false);
             g.drawString(this.font, "§cSTATUS", rx + 285, headerY, 0xFFFFFFFF, false);
             g.fill(rx + 10, headerY + 9, rx + rWidth - 10, headerY + 10, 0xFF330000);
@@ -238,7 +238,6 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         }
 
         g.drawString(this.font, "Drone Hub", (176 - font.width("Drone Hub"))/2, 6, 0xFF404040, false);
-        g.drawString(this.font, "Inventory", 8, 72, 0xFF404040, false);
     }
 
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {}
