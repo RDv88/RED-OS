@@ -26,9 +26,9 @@ public class VersionNoticeScreen extends Screen {
         int cx = this.width / 2;
         int cy = this.height / 2;
 
-        // Clean button at the bottom
+        // Smaller, more elegant button at the bottom to avoid text overlap
         String btnText = "RETURN TO MENU";
-        this.addRenderableWidget(new AlertButton(cx - 80, cy + 80, 160, 20, btnText, b -> {
+        this.addRenderableWidget(new AlertButton(cx - 60, cy + 85, 120, 16, btnText, b -> {
             if (callback != null) {
                 callback.accept(false);
             } else {
@@ -45,20 +45,20 @@ public class VersionNoticeScreen extends Screen {
         int cx = this.width / 2;
         int cy = this.height / 2;
         int boxW = 300;
-        int boxH = 220; // Increased height for better spacing
+        int boxH = 220; 
 
         // Terminal Box
         g.fill(cx - boxW/2, cy - boxH/2, cx + boxW/2, cy + boxH/2, 0xEE0A0505);
         g.renderOutline(cx - boxW/2, cy - boxH/2, boxW, boxH, 0xFF660000); 
         g.renderOutline(cx - boxW/2 + 2, cy - boxH/2 + 2, boxW - 4, boxH - 4, 0x22AA0000);
 
-        // Header Title
-        g.drawCenteredString(this.font, "§c§l[ RED-OS ] §f- §cSYSTEM SYNCHRONIZATION", cx, cy - boxH/2 + 12, 0xFFFFFFFF);
+        // Header Title: Updated to UPDATE INFORMATION
+        g.drawCenteredString(this.font, "§c§l[ RED-OS ] §f- §cUPDATE INFORMATION", cx, cy - boxH/2 + 12, 0xFFFFFFFF);
         g.fill(cx - 130, cy - boxH/2 + 25, cx + 130, cy - boxH/2 + 26, 0x44AAAAAA);
 
-        // Briefing Text (Starting lower to avoid overlap)
+        // Briefing Text
         String[] lines = infoMsg.split("\n");
-        int textY = cy - 70; 
+        int textY = cy - 75; // Shifted up slightly for better clearance
         for (String line : lines) {
             g.drawCenteredString(this.font, line, cx, textY, 0xFFFFFFFF);
             textY += 12;
