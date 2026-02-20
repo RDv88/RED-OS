@@ -40,9 +40,9 @@ public class RedosClient implements ClientModInitializer {
     private void handleVersionMismatch(String serverVer, String clientVer, Minecraft client) {
         if (!clientVer.equalsIgnoreCase(serverVer)) {
             String latest = UpdateChecker.getLatestRemoteVersion();
-            String message = "§c§lRED-OS Update Center\n\n§fInitialization paused.\n§fYour system needs a quick update!\n\n§7The server is currently running a\n§7different firmware version.\n\n§8» §7Local Engine:  §cV" + clientVer + "\n§8» §7Remote Host:   §aV" + serverVer + "\n\n§fLATEST BUILD: §bV" + latest + " §3(Available)\n\n§7To join the network,\n§7please install the latest build.\n§7Visit our GitHub to get synced.";
+            String message = "§fInitialization paused.\n§fYour system needs a quick update!\n\n§7The server is currently running a\n§7different firmware version.\n\n§8» §7Local Engine:  §cV" + clientVer + "\n§8» §7Remote Host:   §aV" + serverVer + "\n\n§fLATEST BUILD: §bV" + latest + " §3(Available)\n\n§7Visit our GitHub to find the latest version.\n§7Thank you!";
             client.execute(() -> { 
-                client.setScreen(new VersionNoticeScreen(null, "", message, true, (shouldContinue) -> { 
+                client.setScreen(new VersionNoticeScreen(null, "RED-OS: UPDATE INFORMATION", message, true, (shouldContinue) -> { 
                     client.disconnectFromWorld(Component.literal("Connection aborted by user.")); 
                 })); 
             });
