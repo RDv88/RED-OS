@@ -94,6 +94,56 @@ public class TechNetwork {
 
     public enum NodeType { SHORT_RANGE, LONG_RANGE, SENSOR, TRIGGER, CAMERA, SERVER, PORTER, IO_TAG, DRONE_STATION }
 
+    public record LogisticsTaskData(BlockPos source, BlockPos target, int priority, int index) {}
+
+    public static @org.jetbrains.annotations.Nullable LogisticsTaskData getBestTaskFromRAM(BlockPos hubPos, String networkId) {
+        NetworkNode hubNode = SERVER_REGISTRY.get(hubPos);
+        if (hubNode == null || hubNode.type != NodeType.DRONE_STATION) return null;
+
+        Object tasksObj = hubNode.settings.get("task_list");
+        if (!(tasksObj instanceof List<?> tasks)) return null;
+
+        for (int p = 1; p <= 5; p++) {
+            for (int i = 0; i < tasks.size(); i++) {
+                Object taskObj = tasks.get(i);
+                if (taskObj instanceof Map<?, ?> rawMap) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> taskMap = (Map<String, Object>) rawMap;
+                    boolean enabled = (boolean) taskMap.getOrDefault("enabled", true);
+                    int priority = ((Number) taskMap.getOrDefault("priority", 3)).intValue();
+                    
+                    if (enabled && priority == p) {
+                        BlockPos src = (BlockPos) taskMap.get("source");
+                        BlockPos dst = (BlockPos) taskMap.get("target");
+                        
+                        if (hasItemsAtSourceRAM(src, networkId) && hasSpaceAtTargetRAM(dst, networkId)) {
+                            return new LogisticsTaskData(src, dst, priority, i);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasItemsAtSourceRAM(BlockPos tagPos, String networkId) {
+        NetworkNode node = SERVER_REGISTRY.get(tagPos);
+        if (node != null && node.type == NodeType.IO_TAG && node.networkId.equals(networkId)) {
+            Object count = node.settings.get("item_count");
+            return count instanceof Number n && n.intValue() > 0;
+        }
+        return false;
+    }
+
+    private static boolean hasSpaceAtTargetRAM(BlockPos tagPos, String networkId) {
+        NetworkNode node = SERVER_REGISTRY.get(tagPos);
+        if (node != null && node.type == NodeType.IO_TAG && node.networkId.equals(networkId)) {
+            Object space = node.settings.get("free_space");
+            return space instanceof Number n && n.intValue() >= 64;
+        }
+        return true; // Fallback
+    }
+
     private static File getDatabaseFile() {
         Path configDir = FabricLoader.getInstance().getConfigDir().resolve("redos");
         File dir = configDir.toFile();
