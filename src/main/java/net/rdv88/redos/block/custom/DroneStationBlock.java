@@ -50,28 +50,44 @@ public class DroneStationBlock extends BaseEntityBlock {
     }
 
     @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide()) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof DroneStationBlockEntity hub) {
+                hub.releaseChunk();
+                // If creative, clear inventory so no drones drop during removal
+                if (player.isCreative()) {
+                    hub.getInventory().clearContent();
+                }
+            }
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof DroneStationBlockEntity hub) {
-                // Release the forced chunk before removal
-                hub.releaseChunk();
-                
-                // Drop items from slots that are NOT currently locked (launched drones stay drones)
+                // If the Hub was NOT cleared by a creative player, drop the drones
+                // This covers Water, TNT, and Survival breaks.
                 SimpleContainer dropInv = new SimpleContainer(3);
+                boolean hasDrones = false;
                 for (int i = 0; i < 3; i++) {
-                    if (!hub.isSlotLocked(i)) {
-                        dropInv.setItem(i, hub.getInventory().getItem(i).copy());
+                    ItemStack stack = hub.getInventory().getItem(i);
+                    if (!stack.isEmpty()) {
+                        if (!hub.isSlotLocked(i)) {
+                            dropInv.setItem(i, stack.copy());
+                            hasDrones = true;
+                        }
                     }
                 }
-                Containers.dropContents(level, pos, dropInv);
+                if (hasDrones) {
+                    Containers.dropContents(level, pos, dropInv);
+                }
             }
-            // 1. Unregister from Network
+            // 1. Unregister from Network (Always happen)
             TechNetwork.removeNode(level, pos);
-            // 2. Drop the Hub itself
-            if (!moved) {
-                Block.popResource(level, pos, new ItemStack(ModBlocks.DRONE_STATION));
-            }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
