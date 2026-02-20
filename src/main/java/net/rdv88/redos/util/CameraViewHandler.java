@@ -95,6 +95,9 @@ public class CameraViewHandler {
         playerCameraStates.put(player.getUUID(), new CameraState(player, camPos, watcher.getId(), oldGM, playerChunk));
 
         player.setGameMode(GameType.SPECTATOR);
+        // FORCE INVISIBILITY: This hides the player model from 3rd party first-person mods (like First Person Model)
+        // Duration -1 (infinite until removed), Ambient=true, showParticles=false, showIcon=false
+        player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.INVISIBILITY, -1, 0, false, false, false));
 
         double spawnX = camPos.getX() + 0.5;
         double spawnY = camPos.getY() - 1.0; 
@@ -123,6 +126,8 @@ public class CameraViewHandler {
         if (player.connection != null) {
             player.teleportTo(level, state.returnX, state.returnY, state.returnZ, Set.of(), state.returnYaw, state.returnPitch, true);
             player.setGameMode(state.originalGameMode);
+            // REMOVE INVISIBILITY: Back to normal state
+            player.removeEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY);
             player.connection.send(new ClientboundSetCameraPacket(player));
         }
 
