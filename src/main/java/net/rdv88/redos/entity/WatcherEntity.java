@@ -45,8 +45,13 @@ public class WatcherEntity extends LivingEntity {
 
     public void setOwner(ServerPlayer owner) {
         this.owner = owner;
-        this.entityData.set(OWNER_NAME, owner.getGameProfile().name());
+        String playerName = owner.getGameProfile().name();
+        this.entityData.set(OWNER_NAME, playerName);
         this.setHealth(owner.getHealth());
+        
+        // VISUAL FEEDBACK: Set custom name for other players to see
+        this.setCustomName(net.minecraft.network.chat.Component.literal(playerName + " (Remote Link)"));
+        this.setCustomNameVisible(true);
     }
 
     public String getOwnerName() {
