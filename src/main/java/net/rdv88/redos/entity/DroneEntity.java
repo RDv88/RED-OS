@@ -97,6 +97,16 @@ public class DroneEntity extends Mob {
     public void setCarriedItem(ItemStack stack) { this.entityData.set(CARRIED_ITEM, stack); }
 
     @Override
+    public boolean removeWhenFarAway(double distanceSquared) {
+        return false;
+    }
+
+    @Override
+    public boolean checkDespawn() {
+        return false;
+    }
+
+    @Override
     public void tick() {
         super.tick();
         this.noPhysics = (state != State.CRASHING);
@@ -195,8 +205,16 @@ public class DroneEntity extends Mob {
         this.setDeltaMovement(0, Math.sin(level().getGameTime() * 0.2) * 0.05, 0);
         if (level().getGameTime() % 20 == 0) {
             if (TechNetwork.isConnected(level(), this.blockPosition(), networkId)) {
+                // Determine the correct state to return to
+                State recoveryState = (sourcePos != null) ? State.GOING_TO_SOURCE : State.RETURNING_HOME;
+                if (!getCarriedItem().isEmpty()) recoveryState = State.GOING_TO_TARGET;
+                
                 recalculateRoute();
-                if (!highwayWaypoints.isEmpty()) { state = State.GOING_TO_SOURCE; panicTimer = 0; return; }
+                if (!highwayWaypoints.isEmpty()) { 
+                    state = recoveryState; 
+                    panicTimer = 0; 
+                    return; 
+                }
             }
         }
         if (panicTimer > 600) startCrashing("Timeout");
@@ -266,6 +284,11 @@ public class DroneEntity extends Mob {
         double targetZ = waypoint.getZ() + 0.5;
         moveTo(targetX, targetY, targetZ);
         if (distanceToSqr(targetX, targetY, targetZ) < 1.0) {
+            // DRONE HEARTBEAT: Refresh network link data while the chunk is loaded
+            if (!level().isClientSide()) {
+                TechNetwork.refreshNodeConnections(level(), waypoint);
+            }
+
             currentWaypointIdx++;
             if (currentWaypointIdx >= highwayWaypoints.size()) {
                 if (nextState != null) { state = nextState; interactionTimer = 20; }
@@ -312,6 +335,11 @@ public class DroneEntity extends Mob {
 
     private void pickupItem() {
         if (sourcePos == null) return;
+        
+        // SYNC BEFORE ACTION: Force the Tag to update RAM data
+        BlockEntity tagBE = level().getBlockEntity(sourcePos);
+        if (tagBE instanceof IOTagBlockEntity tag) tag.updateInventoryStats();
+
         for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
                 for (int z = -1; z <= 1; z++) {
@@ -335,6 +363,11 @@ public class DroneEntity extends Mob {
 
     private void dropItem() {
         if (targetPos == null || getCarriedItem().isEmpty()) return;
+
+        // SYNC BEFORE ACTION: Force the Tag to update RAM data at target
+        BlockEntity tagBE = level().getBlockEntity(targetPos);
+        if (tagBE instanceof IOTagBlockEntity tag) tag.updateInventoryStats();
+
         for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
                 for (int z = -1; z <= 1; z++) {

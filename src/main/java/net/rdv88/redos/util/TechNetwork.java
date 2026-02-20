@@ -272,6 +272,23 @@ public class TechNetwork {
         }
     }
 
+    public static void refreshNodeConnections(Level level, BlockPos pos) {
+        if (level == null || level.isClientSide()) return;
+        NetworkNode node = SERVER_REGISTRY.get(pos);
+        if (node == null) return;
+
+        // ONLY refresh if it's a transmitter (infrastructure)
+        if (node.type != NodeType.SHORT_RANGE && node.type != NodeType.LONG_RANGE) return;
+
+        // Force signal calculation with all neighbors in the same dimension
+        String dim = level.dimension().identifier().toString();
+        for (NetworkNode neighbor : SERVER_REGISTRY.values()) {
+            if (node == neighbor || !node.dimension.equals(neighbor.dimension)) continue;
+            // Using isInfrastructure=true ensures the result is saved to neighborObs RAM
+            calculateSignal(level, node.pos, neighbor.pos, node.type, true);
+        }
+    }
+
     public static List<SyncHandheldDataPayload.DeviceEntry> calculateVisibleDevices(ServerPlayer player, String networkIds) {
         List<SyncHandheldDataPayload.DeviceEntry> visible = new ArrayList<>();
         Set<String> activeIds = new HashSet<>(Arrays.asList(networkIds.split(",")));
@@ -318,7 +335,45 @@ public class TechNetwork {
     }
 
     public static int countSolidBlocks(Level level, BlockPos start, BlockPos end) { if (start.equals(end)) return 0; net.minecraft.world.phys.Vec3 startVec = net.minecraft.world.phys.Vec3.atCenterOf(start); net.minecraft.world.phys.Vec3 endVec = net.minecraft.world.phys.Vec3.atCenterOf(end); int obs = 0; double dist = Math.sqrt(start.distSqr(end)); if (dist == 0) return 0; net.minecraft.world.phys.Vec3 dir = endVec.subtract(startVec).normalize(); for (double d = 1.0; d < dist; d += 1.0) { net.minecraft.world.phys.Vec3 step = startVec.add(dir.scale(d)); BlockPos p = BlockPos.containing(step.x, step.y, step.z); if (!p.equals(start) && !p.equals(end)) { if (level.hasChunk(p.getX() >> 4, p.getZ() >> 4)) { if (level.getBlockState(p).isRedstoneConductor(level, p)) { obs++; } } else { return -1; } } } return obs; }
-    public static double calculateSignal(Level level, BlockPos tPos, BlockPos rPos, NodeType type, boolean isInfrastructure) { double dist = Math.sqrt(tPos.distSqr(rPos)); int measured = countSolidBlocks(level, tPos, rPos); int obs = 2; if (isInfrastructure) { NetworkNode node = SERVER_REGISTRY.get(tPos); String targetKey = rPos.getX() + ", " + rPos.getY() + ", " + rPos.getZ(); if (measured != -1) { obs = measured; if (node != null && (!node.neighborObs.containsKey(targetKey) || node.neighborObs.get(targetKey) != obs)) { node.neighborObs.put(targetKey, obs); dbDirty = true; lastChangeTime = System.currentTimeMillis(); } } else if (node != null) { obs = node.neighborObs.getOrDefault(targetKey, 2); } } else { obs = (measured == -1) ? 2 : measured; } double baseRange = (type == NodeType.SHORT_RANGE) ? 20 : 128; double maxRange = baseRange; double impact = 0; if (type == NodeType.SHORT_RANGE) { impact = 0.1 * (Math.pow(2, obs) - 1); maxRange = Math.min(64, baseRange * (1.0 + (impact / 100.0))); } else { impact = obs * 4.0; maxRange = Math.max(0, baseRange * (1.0 - (impact / 100.0))); } if (maxRange <= 0 || dist > maxRange) return 0; double rawSignal = (1.0 - (dist / maxRange)) * 100.0; double finalSignal = (type == NodeType.SHORT_RANGE) ? rawSignal + impact : rawSignal - impact; if (finalSignal < 1.0) return 0; return Math.min(100, finalSignal); }
+    public static double calculateSignal(Level level, BlockPos tPos, BlockPos rPos, NodeType type, boolean isInfrastructure) { 
+        double dist = Math.sqrt(tPos.distSqr(rPos)); 
+        int measured = countSolidBlocks(level, tPos, rPos); 
+        int obs = 2; 
+        
+        if (measured == -1) {
+            // UNLOADED CHUNK BRIDGE: Use RAM cache if physical world is not available
+            NetworkNode node = SERVER_REGISTRY.get(tPos);
+            if (node != null) {
+                String targetKey = rPos.getX() + ", " + rPos.getY() + ", " + rPos.getZ();
+                obs = node.neighborObs.getOrDefault(targetKey, 2);
+            }
+        } else {
+            obs = measured;
+            if (isInfrastructure) { 
+                NetworkNode node = SERVER_REGISTRY.get(tPos); 
+                String targetKey = rPos.getX() + ", " + rPos.getY() + ", " + rPos.getZ(); 
+                if (node != null && (!node.neighborObs.containsKey(targetKey) || node.neighborObs.get(targetKey) != obs)) { 
+                    node.neighborObs.put(targetKey, obs); dbDirty = true; lastChangeTime = System.currentTimeMillis(); 
+                } 
+            }
+        }
+        
+        double baseRange = (type == NodeType.SHORT_RANGE) ? 20 : 128; 
+        double maxRange = baseRange; 
+        double impact = 0; 
+        if (type == NodeType.SHORT_RANGE) { 
+            impact = 0.1 * (Math.pow(2, obs) - 1); 
+            maxRange = Math.min(64, baseRange * (1.0 + (impact / 100.0))); 
+        } else { 
+            impact = obs * 4.0; 
+            maxRange = Math.max(0, baseRange * (1.0 - (impact / 100.0))); 
+        } 
+        if (maxRange <= 0 || dist > maxRange) return 0; 
+        double rawSignal = (1.0 - (dist / maxRange)) * 100.0; 
+        double finalSignal = (type == NodeType.SHORT_RANGE) ? rawSignal + impact : rawSignal - impact; 
+        if (finalSignal < 1.0) return 0; 
+        return Math.min(100, finalSignal); 
+    }
     
     public static Map<BlockPos, NetworkNode> getConnectedMeshNodes(Level level, BlockPos startPos, String networkId) {
         Map<BlockPos, NetworkNode> connected = new HashMap<>(); Queue<BlockPos> queue = new LinkedList<>();
