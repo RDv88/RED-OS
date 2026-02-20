@@ -48,11 +48,15 @@ public class LongRangeTransmitterBlock extends FaceAttachedHorizontalDirectional
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             TechNetwork.removeNode(level, pos);
-            if (!moved) {
-                Block.popResource(level, pos, new ItemStack(ModBlocks.LONG_RANGE_TRANSMITTER));
-            }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);
+    }
+
+    @Override
+    protected boolean canSurvive(BlockState state, net.minecraft.world.level.LevelReader level, BlockPos pos) {
+        Direction direction = getConnectedDirection(state).getOpposite();
+        BlockPos supportPos = pos.relative(direction);
+        return level.getBlockState(supportPos).isFaceSturdy(level, supportPos, direction.getOpposite());
     }
 
     @Override

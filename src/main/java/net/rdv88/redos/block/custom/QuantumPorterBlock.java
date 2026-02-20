@@ -94,10 +94,6 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
             if (otherState.is(this) && otherState.getValue(HALF) != half) {
                 level.setBlock(otherPos, Blocks.AIR.defaultBlockState(), 35);
             }
-
-            if (half == DoubleBlockHalf.LOWER && !moved) {
-                Block.popResource(level, pos, new ItemStack(ModBlocks.QUANTUM_PORTER));
-            }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }

@@ -58,9 +58,6 @@ public class WirelessCameraBlock extends FaceAttachedHorizontalDirectionalBlock 
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             TechNetwork.removeNode(level, pos);
-            if (!moved) {
-                Block.popResource(level, pos, new ItemStack(ModBlocks.WIRELESS_IP_CAMERA));
-            }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
