@@ -102,11 +102,6 @@ public class DroneEntity extends Mob {
     }
 
     @Override
-    public boolean checkDespawn() {
-        return false;
-    }
-
-    @Override
     public void tick() {
         super.tick();
         this.noPhysics = (state != State.CRASHING);
@@ -145,21 +140,39 @@ public class DroneEntity extends Mob {
             case UNLOADING -> {
                 dropItem();
                 
-                // RE-EVALUATE: After every delivery, ask the Hub for the MOST IMPORTANT task
+                // RE-EVALUATE: Try to get a new assignment from Hub or RAM
+                BlockPos nextSource = null;
+                BlockPos nextTarget = null;
+                int nextIdx = -1;
+
                 BlockEntity be = level().getBlockEntity(hubPos);
                 if (be instanceof DroneStationBlockEntity hub) {
                     DroneStationBlockEntity.LogisticsTask nextTask = hub.requestNextTask(getUUID(), taskIndex);
                     if (nextTask != null) {
-                        this.sourcePos = nextTask.source;
-                        this.targetPos = nextTask.target;
-                        this.taskIndex = hub.getTasks().indexOf(nextTask);
-                        
-                        List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
-                        if (!toSource.isEmpty()) { 
-                            setHighway(toSource); 
-                            state = State.GOING_TO_SOURCE; 
-                            return; 
-                        }
+                        nextSource = nextTask.source;
+                        nextTarget = nextTask.target;
+                        nextIdx = hub.getTasks().indexOf(nextTask);
+                    }
+                } else {
+                    // HUB UNLOADED: Ask the RAM database instead!
+                    TechNetwork.LogisticsTaskData ramTask = TechNetwork.getBestTaskFromRAM(hubPos, networkId);
+                    if (ramTask != null) {
+                        nextSource = ramTask.source();
+                        nextTarget = ramTask.target();
+                        nextIdx = ramTask.index();
+                    }
+                }
+
+                if (nextSource != null) {
+                    this.sourcePos = nextSource;
+                    this.targetPos = nextTarget;
+                    this.taskIndex = nextIdx;
+                    
+                    List<BlockPos> toSource = TechNetwork.findMeshPath(level(), this.blockPosition(), sourcePos, networkId);
+                    if (!toSource.isEmpty()) { 
+                        setHighway(toSource); 
+                        state = State.GOING_TO_SOURCE; 
+                        return; 
                     }
                 }
                 

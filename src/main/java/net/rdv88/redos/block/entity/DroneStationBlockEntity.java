@@ -156,7 +156,20 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         if (level == null) return;
         Map<String, Object> settings = new HashMap<>();
         settings.put("drone_count", getActiveDroneCount());
+        
+        // Serialize task list for RAM access
+        List<Map<String, Object>> serializedTasks = new ArrayList<>();
+        for (LogisticsTask task : taskList) {
+            Map<String, Object> tMap = new HashMap<>();
+            tMap.put("source", task.source);
+            tMap.put("target", task.target);
+            tMap.put("priority", task.priority);
+            tMap.put("enabled", task.enabled);
+            serializedTasks.add(tMap);
+        }
+        settings.put("task_list", serializedTasks);
         settings.put("task_count", taskList.size());
+        
         TechNetwork.registerNode(level, worldPosition, this.networkId, this.name, TechNetwork.NodeType.DRONE_STATION, this.serial, settings);
     }
 
