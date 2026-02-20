@@ -20,6 +20,8 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.rdv88.redos.block.ModBlocks;
 import net.rdv88.redos.block.entity.SmartMotionSensorBlockEntity;
 import net.rdv88.redos.util.TechNetwork;
@@ -28,6 +30,13 @@ import org.jetbrains.annotations.Nullable;
 public class SmartMotionSensorBlock extends FaceAttachedHorizontalDirectionalBlock implements EntityBlock {
     public static final MapCodec<SmartMotionSensorBlock> CODEC = simpleCodec(SmartMotionSensorBlock::new);
     public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
+
+    protected static final VoxelShape FLOOR_SHAPE = Block.box(4, 0, 4, 12, 2, 12);
+    protected static final VoxelShape CEILING_SHAPE = Block.box(4, 14, 4, 12, 16, 12);
+    protected static final VoxelShape NORTH_SHAPE = Block.box(4, 4, 13, 12, 12, 16);
+    protected static final VoxelShape SOUTH_SHAPE = Block.box(4, 4, 0, 12, 12, 3);
+    protected static final VoxelShape EAST_SHAPE = Block.box(0, 4, 4, 3, 12, 12);
+    protected static final VoxelShape WEST_SHAPE = Block.box(13, 4, 4, 16, 12, 12);
 
     @Override
     public MapCodec<? extends SmartMotionSensorBlock> codec() { return CODEC; }
@@ -38,6 +47,21 @@ public class SmartMotionSensorBlock extends FaceAttachedHorizontalDirectionalBlo
             .setValue(FACING, Direction.NORTH)
             .setValue(FACE, AttachFace.WALL)
             .setValue(POWERED, false));
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
+        return switch (state.getValue(FACE)) {
+            case FLOOR -> FLOOR_SHAPE;
+            case CEILING -> CEILING_SHAPE;
+            case WALL -> switch (state.getValue(FACING)) {
+                case NORTH -> NORTH_SHAPE;
+                case SOUTH -> SOUTH_SHAPE;
+                case EAST -> EAST_SHAPE;
+                case WEST -> WEST_SHAPE;
+                default -> NORTH_SHAPE;
+            };
+        };
     }
 
     @Override
@@ -94,8 +118,26 @@ public class SmartMotionSensorBlock extends FaceAttachedHorizontalDirectionalBlo
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
+        Direction clickedFace = context.getClickedFace();
+        BlockState blockState;
+
+        // PRIORITIZE THE CLICKED FACE: If you click the bottom of a block, you want it on the ceiling.
+        if (clickedFace.getAxis() == Direction.Axis.Y) {
+            blockState = this.defaultBlockState()
+                    .setValue(FACE, clickedFace == Direction.UP ? AttachFace.FLOOR : AttachFace.CEILING)
+                    .setValue(FACING, context.getHorizontalDirection().getOpposite());
+        } else {
+            blockState = this.defaultBlockState()
+                    .setValue(FACE, AttachFace.WALL)
+                    .setValue(FACING, clickedFace);
+        }
+
+        if (blockState.canSurvive(context.getLevel(), context.getClickedPos())) {
+            return blockState;
+        }
+
+        // FALLBACK: Only if clicked face is invalid, use the nearest looking directions
         for (Direction direction : context.getNearestLookingDirections()) {
-            BlockState blockState;
             if (direction.getAxis() == Direction.Axis.Y) {
                 blockState = this.defaultBlockState()
                         .setValue(FACE, direction == Direction.UP ? AttachFace.FLOOR : AttachFace.CEILING)

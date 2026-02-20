@@ -33,13 +33,9 @@ public class IOTagBlockEntity extends BlockEntity {
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, IOTagBlockEntity blockEntity) {
-        // No periodic ticking needed, we use event-driven updates via Mixin for efficiency
+        // No periodic ticking needed
     }
 
-    /**
-     * Triggered by adjacent containers via Mixin or by periodic tick.
-     * Updates the RAM (TechNetwork Registry) with current inventory data.
-     */
     public void updateInventoryStats() {
         if (level == null || level.isClientSide()) return;
         
@@ -49,19 +45,30 @@ public class IOTagBlockEntity extends BlockEntity {
         
         // Scan adjacent blocks for a container
         for (Direction dir : Direction.values()) {
-            BlockEntity be = level.getBlockEntity(worldPosition.relative(dir));
+            BlockPos sidePos = worldPosition.relative(dir);
+            BlockEntity be = level.getBlockEntity(sidePos);
+            
             if (be instanceof Container container) {
-                for (int i = 0; i < container.getContainerSize(); i++) {
-                    ItemStack stack = container.getItem(i);
-                    if (stack.isEmpty()) {
-                        currentFreeSpace += 64; // Standard stack size assumption
-                    } else {
-                        currentCount += stack.getCount();
-                        currentFreeSpace += (stack.getMaxStackSize() - stack.getCount());
+                // IMPROVED SCAN: Handle Double Chests correctly in 1.21.11
+                Container fullInventory = container;
+                BlockState sideState = level.getBlockState(sidePos);
+                if (sideState.getBlock() instanceof net.minecraft.world.level.block.ChestBlock chest) {
+                    fullInventory = net.minecraft.world.level.block.ChestBlock.getContainer(chest, sideState, level, sidePos, true);
+                }
+
+                if (fullInventory != null) {
+                    for (int i = 0; i < fullInventory.getContainerSize(); i++) {
+                        ItemStack stack = fullInventory.getItem(i);
+                        if (stack.isEmpty()) {
+                            currentFreeSpace += 64;
+                        } else {
+                            currentCount += stack.getCount();
+                            currentFreeSpace += (stack.getMaxStackSize() - stack.getCount());
+                        }
                     }
                 }
                 foundContainer = true;
-                break; // We assume the tag is attached to one primary container
+                // REMOVED BREAK: Continue scanning to find all parts of complex container setups
             }
         }
         
