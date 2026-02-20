@@ -22,7 +22,10 @@ public class RecipeGuardian {
             "handheld_device", "short_range_transmitter", "long_range_transmitter", 
             "wireless_ip_camera", "smart_motion_sensor", "remote_redstone_trigger"
         ));
-        GUARDIAN_MAP.put("hightech", List.of("plasma_pulse_disintegrator", "quantum_porter"));
+        GUARDIAN_MAP.put("hightech", List.of(
+            "plasma_pulse_disintegrator", "quantum_porter", 
+            "drone_station", "io_tag", "drone_unit"
+        ));
     }
 
     public static void checkAndFix(ServerPlayer player, MinecraftServer server) {

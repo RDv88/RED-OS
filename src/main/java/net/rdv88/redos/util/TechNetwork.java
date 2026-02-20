@@ -70,11 +70,12 @@ public class TechNetwork {
             
             if (type == NodeType.SENSOR) {
                 settings.put("detect_players", true);
-                settings.put("detect_mobs", true);
+                settings.put("detect_mobs", false);
                 settings.put("detect_animals", false);
                 settings.put("detect_villagers", false);
-                settings.put("range", 10);
-                settings.put("hold_time", 20);
+                settings.put("alerts_enabled", true);
+                settings.put("range", 3);
+                settings.put("hold_time", 30);
             }
             if (type == NodeType.IO_TAG) {
                 settings.put("mode", "PICKUP"); // PICKUP or DROP_OFF
@@ -167,11 +168,12 @@ public class TechNetwork {
                         // Default settings for new types
                         if (node.type == NodeType.SENSOR && node.settings.isEmpty()) {
                             node.settings.put("detect_players", true);
-                            node.settings.put("detect_mobs", true);
+                            node.settings.put("detect_mobs", false);
                             node.settings.put("detect_animals", false);
                             node.settings.put("detect_villagers", false);
-                            node.settings.put("range", 10);
-                            node.settings.put("hold_time", 20);
+                            node.settings.put("alerts_enabled", true);
+                            node.settings.put("range", 3);
+                            node.settings.put("hold_time", 30);
                         }
                         if (node.type == NodeType.IO_TAG && node.settings.isEmpty()) {
                             node.settings.put("mode", "PICKUP");
@@ -364,6 +366,7 @@ public class TechNetwork {
                 boolean dm = (boolean)node.settings.getOrDefault("detect_mobs", true); 
                 boolean da = (boolean)node.settings.getOrDefault("detect_animals", false); 
                 boolean dv = (boolean)node.settings.getOrDefault("detect_villagers", false);
+                boolean alerts = (boolean)node.settings.getOrDefault("alerts_enabled", true);
                 int range = ((Number)node.settings.getOrDefault("range", 10)).intValue();
                 int hold = ((Number)node.settings.getOrDefault("hold_time", 20)).intValue();
                 
@@ -378,7 +381,7 @@ public class TechNetwork {
                     if (freeObj instanceof Number num) freeSpace = num.intValue();
                 }
 
-                visible.add(new SyncHandheldDataPayload.DeviceEntry(node.pos, node.networkId, node.customName, node.type.name(), finalSignal, connectionMode, dp, dm, da, dv, range, hold, itemCount, freeSpace));
+                visible.add(new SyncHandheldDataPayload.DeviceEntry(node.pos, node.networkId, node.customName, node.type.name(), finalSignal, connectionMode, dp, dm, da, dv, alerts, range, hold, itemCount, freeSpace));
             }
         }
         return visible;

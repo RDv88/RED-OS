@@ -32,11 +32,12 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
     public String networkId = "00000";
     private String serial = UUID.randomUUID().toString();
     private boolean detectPlayers = true;
-    private boolean detectMobs = true;
+    private boolean detectMobs = false;
     private boolean detectAnimals = false;
     private boolean detectVillagers = false;
-    private int detectionRange = 10;
-    private int holdTime = 20; // Default 1 second (20 ticks)
+    private boolean alertsEnabled = true;
+    private int detectionRange = 3;
+    private int holdTime = 30; // 1.5 seconds (30 ticks)
     private int logCooldown = 0;
     private int deactivationTimer = 0;
 
@@ -50,11 +51,12 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
     public String getNetworkId() { return networkId; }
     public String getSerial() { return serial; }
     
-    public void setSettings(boolean p, boolean m, boolean a, boolean v, int range, int hold) {
+    public void setSettings(boolean p, boolean m, boolean a, boolean v, boolean alerts, int range, int hold) {
         this.detectPlayers = p; 
         this.detectMobs = m; 
         this.detectAnimals = a; 
         this.detectVillagers = v; 
+        this.alertsEnabled = alerts;
         this.detectionRange = Math.clamp(range, 1, 15);
         this.holdTime = Math.clamp(hold, 0, 100);
         setChanged();
@@ -67,6 +69,7 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
         settings.put("detect_mobs", this.detectMobs);
         settings.put("detect_animals", this.detectAnimals);
         settings.put("detect_villagers", this.detectVillagers);
+        settings.put("alerts_enabled", this.alertsEnabled);
         settings.put("range", this.detectionRange);
         settings.put("hold_time", this.holdTime);
         TechNetwork.registerNode(level, worldPosition, this.networkId, this.name, TechNetwork.NodeType.SENSOR, this.serial, settings);
@@ -134,7 +137,7 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
         if (newState.getBlock() instanceof SmartMotionSensorBlock sensorBlock) {
             sensorBlock.updateNeighbors(newState, level, pos);
         }
-        if (powered && logCooldown <= 0) {
+        if (powered && logCooldown <= 0 && alertsEnabled) {
             TechNetwork.broadcastToNetwork(level, networkId, "§6[Sensor] §fMotion Detected at " + name);
             logCooldown = 100;
         }
@@ -150,6 +153,7 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
         output.putBoolean("detectMobs", detectMobs);
         output.putBoolean("detectAnimals", detectAnimals);
         output.putBoolean("detectVillagers", detectVillagers);
+        output.putBoolean("alertsEnabled", alertsEnabled);
         output.putInt("detectionRange", detectionRange);
         output.putInt("holdTime", holdTime);
         output.putInt("deactivationTimer", deactivationTimer);
@@ -162,11 +166,12 @@ public class SmartMotionSensorBlockEntity extends BlockEntity {
         this.networkId = input.getStringOr("networkId", "00000");
         this.serial = input.getStringOr("serial", UUID.randomUUID().toString());
         this.detectPlayers = input.getBooleanOr("detectPlayers", true);
-        this.detectMobs = input.getBooleanOr("detectMobs", true);
+        this.detectMobs = input.getBooleanOr("detectMobs", false);
         this.detectAnimals = input.getBooleanOr("detectAnimals", false);
         this.detectVillagers = input.getBooleanOr("detectVillagers", false);
-        this.detectionRange = input.getIntOr("detectionRange", 10);
-        this.holdTime = input.getIntOr("holdTime", 20);
+        this.alertsEnabled = input.getBooleanOr("alertsEnabled", true);
+        this.detectionRange = input.getIntOr("detectionRange", 3);
+        this.holdTime = input.getIntOr("holdTime", 30);
         this.deactivationTimer = input.getIntOr("deactivationTimer", 0);
     }
 }

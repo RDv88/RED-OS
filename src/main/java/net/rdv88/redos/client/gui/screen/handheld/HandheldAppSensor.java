@@ -59,36 +59,54 @@ public class HandheldAppSensor implements HandheldApp {
         int bx = sx + (w / 2) - 90;
 
         adder.add(new SettingToggle(bx, ty, btnW, 14, "PLAYERS", setupTarget.detectPlayers(), b -> {
-            saveSettings(setupTarget, !setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, !setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 16, btnW, 14, "ENEMIES", setupTarget.detectMobs(), b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), !setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), !setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 32, btnW, 14, "NEUTRALS", setupTarget.detectAnimals(), b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), !setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), !setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), setupTarget.holdTime());
         }));
         adder.add(new SettingToggle(bx, ty + 48, btnW, 14, "VILLAGERS", setupTarget.detectVillagers(), b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), !setupTarget.detectVillagers(), setupTarget.range(), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), !setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), setupTarget.holdTime());
         }));
 
         int ax = sx + (w / 2) + 10;
+        adder.add(new SettingToggle(ax, ty + 64, btnW, 14, "ALERTS", setupTarget.alertsEnabled(), b -> {
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), !setupTarget.alertsEnabled(), setupTarget.range(), setupTarget.holdTime());
+        }));
+
         adder.add(new HandheldScreen.NavButton(ax, ty + 10, 20, 14, "-", b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.max(1, setupTarget.range() - 1), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), Math.max(1, setupTarget.range() - 1), setupTarget.holdTime());
         }, 0xFF444444));
         adder.add(new HandheldScreen.NavButton(ax + 50, ty + 10, 20, 14, "+", b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), Math.min(15, setupTarget.range() + 1), setupTarget.holdTime());
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), Math.min(15, setupTarget.range() + 1), setupTarget.holdTime());
         }, 0xFF444444));
 
         adder.add(new HandheldScreen.NavButton(ax, ty + 42, 20, 14, "-", b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.max(0, setupTarget.holdTime() - 10));
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), Math.max(0, setupTarget.holdTime() - 10));
         }, 0xFF444444));
         adder.add(new HandheldScreen.NavButton(ax + 50, ty + 42, 20, 14, "+", b -> {
-            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.range(), Math.min(100, setupTarget.holdTime() + 10));
+            saveSettings(setupTarget, setupTarget.detectPlayers(), setupTarget.detectMobs(), setupTarget.detectAnimals(), setupTarget.detectVillagers(), setupTarget.alertsEnabled(), setupTarget.range(), Math.min(100, setupTarget.holdTime() + 10));
         }, 0xFF444444));
     }
 
-    private void saveSettings(SyncHandheldDataPayload.DeviceEntry target, boolean p, boolean m, boolean a, boolean v, int range, int hold) {
-        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureSensorSettingsPayload(target.pos(), p, m, a, v, range, hold));
+    private void saveSettings(SyncHandheldDataPayload.DeviceEntry target, boolean p, boolean m, boolean a, boolean v, boolean alerts, int range, int hold) {
+        // 1. OPTIMISTIC UI: Update the local data immediately so "bam bam" clicking works
+        for (int i = 0; i < devices.size(); i++) {
+            if (devices.get(i).pos().equals(target.pos())) {
+                devices.set(i, new SyncHandheldDataPayload.DeviceEntry(
+                    target.pos(), target.id(), target.name(), target.type(), target.signalStrength(), target.connectionMode(),
+                    p, m, a, v, alerts, range, hold, target.itemCount(), target.freeSpace()
+                ));
+                break;
+            }
+        }
+
+        // 2. NETWORK: Send the actual command to the server
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new ConfigureSensorSettingsPayload(target.pos(), p, m, a, v, alerts, range, hold));
+        
+        // 3. REFRESH: Show the new values on screen instantly
         HandheldScreen.refreshApp();
     }
 
@@ -105,13 +123,35 @@ public class HandheldAppSensor implements HandheldApp {
             int index = i + scrollOffset; if (index >= filtered.size()) break;
             SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
             int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 50, 16, device, b -> { selectedPos = device.pos(); HandheldScreen.refreshApp(); }));
-            adder.add(new HandheldScreen.NavButton(sx + w - 42, rowY + 1, 35, 14, "SETUP", b -> { setupPos = device.pos(); HandheldScreen.refreshApp(); }, 0xFF880000));
+            
+            // 1. Device Name Row (Clickable for Detail View)
+            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 68, 16, device, b -> { 
+                selectedPos = device.pos(); 
+                HandheldScreen.refreshApp(); 
+            }));
+
+            // 2. NEW: "E" (Edit Config) Button - Consistent with Drone Hub
+            adder.add(new HandheldScreen.NavButton(sx + w - 62, rowY + 1, 14, 14, "E", b -> {
+                selectedPos = device.pos();
+                HandheldScreen.refreshApp();
+            }, 0xFF0055AA));
+
+            // 3. "SETUP" (Detailed settings) Button
+            adder.add(new HandheldScreen.NavButton(sx + w - 45, rowY + 1, 40, 14, "SETUP", b -> { 
+                setupPos = device.pos(); 
+                HandheldScreen.refreshApp(); 
+            }, 0xFF880000));
         }
     }
 
     @Override public Optional<GuiEventListener> getInitialFocus() { return selectedPos != null ? Optional.ofNullable(nameInput) : Optional.empty(); }
-    @Override public boolean isEditMode() { return selectedPos != null || setupPos != null; }
+    
+    @Override 
+    public boolean isEditMode() { 
+        // Only return true for the CONFIG view (Name/ID edit), 
+        // but false for SETUP (toggles) so UI refreshes immediately and no SAVE button shows.
+        return selectedPos != null; 
+    }
     
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
         int cx = sx + w / 2;
