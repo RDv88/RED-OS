@@ -26,21 +26,22 @@ public class HandheldAppHome implements HandheldApp {
         int startX = screenCX - (rowWidth / 2); 
         
         apps.clear();
-        // Row 1
-        apps.add(new AppButton(startX, 35, size, size, new ItemStack(Items.RECOVERY_COMPASS), "Network ID's", "NETWORK", sx, sy, w, h));
-        apps.add(new AppButton(startX + size + gap, 35, size, size, new ItemStack(Items.LIGHTNING_ROD), "Transmitters", "TRANSMITTERS", sx, sy, w, h));
-        apps.add(new AppButton(startX + (size + gap) * 2, 35, size, size, new ItemStack(Items.SPYGLASS), "Camera", "CAMERA", sx, sy, w, h));
+        // Row 1: ACTION & SOCIAL
+        apps.add(new AppButton(startX, 35, size, size, new ItemStack(Items.WRITABLE_BOOK), "RED-OS Chat", "CHAT", sx, sy, w, h));
+        apps.add(new AppButton(startX + size + gap, 35, size, size, new ItemStack(Items.SPYGLASS), "Camera", "CAMERA", sx, sy, w, h));
+        apps.add(new AppButton(startX + (size + gap) * 2, 35, size, size, new ItemStack(Items.REDSTONE_TORCH), "Triggers", "TRIGGERS", sx, sy, w, h));
         
-        // Row 2
+        // Row 2: ADVANCED UTILITIES
         int row2Y = 35 + size + 25;
         apps.add(new AppButton(startX, row2Y, size, size, new ItemStack(Items.DAYLIGHT_DETECTOR), "Sensors", "SENSORS", sx, sy, w, h));
-        apps.add(new AppButton(startX + size + gap, row2Y, size, size, new ItemStack(Items.REDSTONE_TORCH), "Triggers", "TRIGGERS", sx, sy, w, h));
-        apps.add(new AppButton(startX + (size + gap) * 2, row2Y, size, size, new ItemStack(Items.REPEATER), "Settings", "SETTINGS", sx, sy, w, h));
+        apps.add(new AppButton(startX + size + gap, row2Y, size, size, new ItemStack(Items.ECHO_SHARD), "Quantum Link", "HIGHTECH", sx, sy, w, h));
+        apps.add(new AppButton(startX + (size + gap) * 2, row2Y, size, size, new ItemStack(Items.CHEST), "Logistic Hub", "LOGISTICS", sx, sy, w, h));
 
-        // Row 3
+        // Row 3: SYSTEM FOUNDATION
         int row3Y = row2Y + size + 25;
-        apps.add(new AppButton(startX, row3Y, size, size, new ItemStack(Items.ECHO_SHARD), "Quantum Link", "HIGHTECH", sx, sy, w, h));
-        apps.add(new AppButton(startX + size + gap, row3Y, size, size, new ItemStack(Items.CHEST), "Logistic Hub", "LOGISTICS", sx, sy, w, h));
+        apps.add(new AppButton(startX, row3Y, size, size, new ItemStack(Items.LIGHTNING_ROD), "Transmitters", "TRANSMITTERS", sx, sy, w, h));
+        apps.add(new AppButton(startX + size + gap, row3Y, size, size, new ItemStack(Items.RECOVERY_COMPASS), "Network ID's", "NETWORK", sx, sy, w, h));
+        apps.add(new AppButton(startX + (size + gap) * 2, row3Y, size, size, new ItemStack(Items.REPEATER), "Settings", "SETTINGS", sx, sy, w, h));
 
         for (AppButton app : apps) adder.add(app);
     }
