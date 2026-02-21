@@ -13,6 +13,7 @@ import net.rdv88.redos.client.gui.screen.CameraLoadingScreen;
 import net.rdv88.redos.client.gui.screen.CameraViewScreen;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import net.rdv88.redos.client.gui.screen.VersionNoticeScreen;
+import net.rdv88.redos.client.gui.screen.handheld.HandheldAppChat;
 import net.rdv88.redos.client.render.entity.WatcherEntityRenderer;
 import net.rdv88.redos.client.render.block.DroneStationBlockEntityRenderer;
 import net.rdv88.redos.entity.ModEntities;
@@ -130,6 +131,12 @@ public class RedosClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(ActionFeedbackPayload.ID, (payload, context) -> {
             context.client().execute(() -> { HandheldScreen.showToast(payload.message()); });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(SyncChatHistoryPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                HandheldAppChat.updateHistory(payload.history());
+            });
         });
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {

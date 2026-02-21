@@ -79,6 +79,8 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(ConfigureDroneHubPayload.ID, ConfigureDroneHubPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestPorterGuiPayload.ID, RequestPorterGuiPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PurgeGhostLightsPayload.ID, PurgeGhostLightsPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(RequestChatSyncPayload.ID, RequestChatSyncPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(SendChatMessagePayload.ID, SendChatMessagePayload.CODEC);
 
         PayloadTypeRegistry.playS2C().register(SyncNetworkNodesPayload.ID, SyncNetworkNodesPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncHandheldDataPayload.ID, SyncHandheldDataPayload.CODEC);
@@ -87,9 +89,42 @@ public class ModMessages {
         PayloadTypeRegistry.playS2C().register(SyncPermissionsPayload.ID, SyncPermissionsPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(PorterGuiResponsePayload.ID, PorterGuiResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncDroneHubTasksPayload.ID, SyncDroneHubTasksPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncChatHistoryPayload.ID, SyncChatHistoryPayload.CODEC);
 
         // Server Side Handlers
         PayloadTypeRegistry.playC2S().register(RequestSyncDroneTasksPayload.ID, RequestSyncDroneTasksPayload.CODEC);
+
+        ServerPlayNetworking.registerGlobalReceiver(RequestChatSyncPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                var history = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
+                    .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+                    .toList();
+                ServerPlayNetworking.send(context.player(), new SyncChatHistoryPayload(history));
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(SendChatMessagePayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayer player = context.player();
+                String senderName = player.getName().getString();
+                String messageText = payload.message();
+
+                // 1. Add to RED-OS History (RAM + Disk)
+                net.rdv88.redos.util.ChatManager.addMessage(senderName, messageText);
+
+                // 2. Broadcast to regular Minecraft Chat
+                net.minecraft.network.chat.Component chatComponent = net.minecraft.network.chat.Component.literal("<" + senderName + "> " + messageText);
+                context.server().getPlayerList().broadcastSystemMessage(chatComponent, false);
+
+                // 3. Sync update to all Handheld users
+                var history = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
+                    .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+                    .toList();
+                for (ServerPlayer p : context.server().getPlayerList().getPlayers()) {
+                    ServerPlayNetworking.send(p, new SyncChatHistoryPayload(history));
+                }
+            });
+        });
 
         ServerPlayNetworking.registerGlobalReceiver(RequestCameraViewPayload.ID, (payload, context) -> {
             context.server().execute(() -> { CameraViewHandler.startViewing(context.player(), payload.pos()); });

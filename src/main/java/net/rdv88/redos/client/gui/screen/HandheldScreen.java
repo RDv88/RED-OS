@@ -142,6 +142,7 @@ public class HandheldScreen extends Screen {
             case "SETTINGS" -> new HandheldAppSettings(savedProfiles, activeIds);
             case "HIGHTECH" -> new HandheldAppHighTech(VISIBLE_DEVICES);
             case "LOGISTICS" -> new HandheldAppLogistics(VISIBLE_DEVICES);
+            case "CHAT" -> new HandheldAppChat();
             default -> new HandheldAppHome();
         };
 
@@ -169,6 +170,7 @@ public class HandheldScreen extends Screen {
         else if (currentApp instanceof HandheldAppHighTech app) app.back();
         else if (currentApp instanceof HandheldAppSettings app) app.back();
         else if (currentApp instanceof HandheldAppLogistics app) app.back();
+        else if (currentApp instanceof HandheldAppChat app) app.back();
         else requestAppSwitch("HOME");
     }
 
@@ -180,6 +182,7 @@ public class HandheldScreen extends Screen {
         else if (currentApp instanceof HandheldAppTriggers app) app.save();
         else if (currentApp instanceof HandheldAppHighTech app) app.save();
         else if (currentApp instanceof HandheldAppLogistics app) app.save();
+        else if (currentApp instanceof HandheldAppChat app) app.sendMessage();
     }
 
     @Override public boolean isPauseScreen() { return false; }

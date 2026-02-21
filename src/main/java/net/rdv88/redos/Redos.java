@@ -100,18 +100,29 @@ public class Redos implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             CameraViewHandler.tick(server);
             TechNetwork.tickLiveUpdates(server);
+            net.rdv88.redos.util.ChatManager.tick();
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             String worldName = server.getWorldData().getLevelName();
             TechNetwork.loadDatabase(worldName);
+            net.rdv88.redos.util.ChatManager.loadHistory();
+        });
+
+        // Server-side chat interception for RED-OS Messenger
+        net.fabricmc.fabric.api.message.v1.ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
+            net.rdv88.redos.util.ChatManager.addMessage(sender.getName().getString(), message.signedContent());
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TechNetwork.saveDatabase(false);
+            net.rdv88.redos.util.ChatManager.saveHistory(false);
         });
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> TechNetwork.saveDatabase(false)));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            TechNetwork.saveDatabase(false);
+            net.rdv88.redos.util.ChatManager.saveHistory(false);
+        }));
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             TechNetwork.syncToPlayer(handler.player);
