@@ -66,13 +66,14 @@ public class HandheldAppChat implements HandheldApp {
 
         if (currentTab == Tab.PRIVATE && selectedPlayerName == null) {
             var players = Minecraft.getInstance().getConnection().getOnlinePlayers();
-            int px = sx + 12; int py = sy + 50; int count = 0;
+            int px = sx + 12; int py = sy + 50 - (int)scrollPos; int count = 0;
             for (var p : players) {
                 String name = p.getProfile().name();
                 if (name.equals(Minecraft.getInstance().player.getName().getString())) continue;
-                adder.add(new PlayerButton(px, py, 36, 36, name, b -> {
-                    selectedPlayerName = name; targetScroll = 0; HandheldScreen.refreshApp();
-                }));
+                PlayerButton btn = new PlayerButton(px, py, 36, 36, name, b -> {
+                    selectedPlayerName = name; targetScroll = 0; scrollPos = 0; HandheldScreen.refreshApp();
+                });
+                if (py > sy + 40 && py < sy + h - 45) adder.add(btn);
                 count++;
                 if (count % 4 == 0) { px = sx + 12; py += 48; } else { px += 44; }
             }
@@ -82,6 +83,7 @@ public class HandheldAppChat implements HandheldApp {
             }, 0xFF444444));
         }
 
+        boolean showInput = (currentTab == Tab.GENERAL) || (selectedPlayerName != null);
         if (chatInput == null) {
             chatInput = new EditBox(font, sx + 5, sy + h - 35, w - 10, 14, Component.literal("ChatInput"));
             chatInput.setMaxLength(100);
@@ -90,73 +92,31 @@ public class HandheldAppChat implements HandheldApp {
         } else {
             chatInput.setX(sx + 5); chatInput.setY(sy + h - 35); chatInput.setWidth(w - 10);
         }
+        chatInput.setVisible(showInput);
         adder.add(chatInput);
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
-        g.drawString(font, "> CHAT ENGINE", sx + 5, sy + 18, 0xFFAA0000, false);
-        g.fill(sx + 5, sy + h - 21, sx + w - 5, sy + h - 20, 0xFF440000);
-
-        if (chatInput != null && chatInput.getValue().isEmpty()) {
-            String hint = (currentTab == Tab.PRIVATE && selectedPlayerName == null) ? "Select a player..." : "Type message...";
-            g.drawString(font, hint, sx + 7, sy + h - 35, 0xFF444444, false);
+        int onlineCount = Minecraft.getInstance().getConnection().getOnlinePlayers().size();
+        
+        if (chatInput != null && chatInput.isVisible()) {
+            g.fill(sx + 5, sy + h - 21, sx + w - 5, sy + h - 20, 0xFF440000);
+            if (chatInput.getValue().isEmpty()) {
+                g.drawString(font, "Type message...", sx + 7, sy + h - 35, 0xFF444444, false);
+            }
         }
 
         if (currentTab == Tab.GENERAL) {
-            if (clientHistory.isEmpty()) {
-                int cx = sx + w / 2;
-                String status = isDataReceived ? "Welcome to RED-OS Chat" : "[ CONNECTING TO NETWORK... ]";
-                g.drawCenteredString(font, status, cx, sy + 80, 0xFF444444);
-            } else {
-                int chatY = (int)(sy + h - 50 + scrollPos); 
-                int maxTextW = w - 26; 
-                int minY = sy + 45;
-                g.enableScissor(sx, minY, sx + w, sy + h - 40); 
-                var timeFormat = new java.text.SimpleDateFormat("HH:mm");
-
-                for (int i = clientHistory.size() - 1; i >= 0; i--) {
-                    var entry = clientHistory.get(i);
-                    String time = timeFormat.format(new java.util.Date(entry.timestamp()));
-                    String pFix = "[" + time + "] " + entry.sender() + ": ";
-                    String message = entry.message();
-                    
-                    var wrappedLines = font.split(Component.literal(pFix + message), maxTextW);
-
-                    for (int j = wrappedLines.size() - 1; j >= 0; j--) {
-                        if (chatY < minY - 10) break;
-                        g.drawString(font, wrappedLines.get(j), sx + 8, chatY, 0xFFFFFFFF, false);
-                        if (j == 0) {
-                            float pScale = 0.8f;
-                            int pWidth = (int)(font.width(pFix) * pScale) + 2;
-                            StringBuilder sb = new StringBuilder();
-                            wrappedLines.get(j).accept((idx, style, cp) -> { sb.append(Character.toChars(cp)); return true; });
-                            String lineContent = sb.toString();
-                            g.fill(sx + 7, chatY - 1, sx + 8 + pWidth, chatY + 9, 0xFF100505);
-                            org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
-                            g.pose().get(oldM);
-                            g.pose().translate(sx + 8, chatY + 1);
-                            g.pose().scale(pScale, pScale);
-                            g.drawString(font, "§c" + pFix, 0, 0, 0xFFFFFFFF, false);
-                            g.pose().set(oldM);
-                        }
-                        chatY -= 10;
-                    }
-                    chatY -= 2;
-                }
-                g.disableScissor();
-                drawScrollbar(g, sx, sy, w, h, clientHistory.size(), maxTextW);
-            }
+            g.drawString(font, "ONLINE PLAYERS: [" + onlineCount + "]", sx + 8, sy + 35, 0xFF888888, false);
+            drawChatContent(g, sx, sy, w, h, true);
         } else if (currentTab == Tab.PRIVATE) {
             if (selectedPlayerName == null) {
-                g.drawString(font, "ONLINE PLAYERS:", sx + 8, sy + 35, 0xFF888888, false);
+                g.drawString(font, "ONLINE PLAYERS: [" + (onlineCount - 1) + "]", sx + 8, sy + 35, 0xFF888888, false);
+                drawScrollbar(g, sx, sy, w, h, onlineCount - 1, w - 26);
             } else {
                 g.drawString(font, "CHAT WITH: " + selectedPlayerName, sx + 8, sy + 35, 0xFFAA0000, false);
-                var filtered = privateHistory.stream()
-                    .filter(e -> e.from().equals(selectedPlayerName) || e.to().equals(selectedPlayerName))
-                    .map(e -> new net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry(e.from(), e.message(), e.timestamp()))
-                    .toList();
-                renderPrivateConversation(g, sx, sy, w, h, filtered);
+                drawChatContent(g, sx, sy, w, h, false);
             }
         } else {
             int cx = sx + w / 2;
@@ -164,54 +124,96 @@ public class HandheldAppChat implements HandheldApp {
         }
     }
 
-    private void renderPrivateConversation(GuiGraphics g, int sx, int sy, int w, int h, List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> entries) {
+    private void drawChatContent(GuiGraphics g, int sx, int sy, int w, int h, boolean general) {
+        var entries = general ? clientHistory.stream().map(e -> new DisplayEntry(e.sender(), e.message(), e.timestamp())).toList()
+                             : privateHistory.stream().filter(e -> e.from().equals(selectedPlayerName) || e.to().equals(selectedPlayerName))
+                                             .map(e -> new DisplayEntry(e.from(), e.message(), e.timestamp())).toList();
+
         if (entries.isEmpty()) {
             int cx = sx + w / 2;
-            g.drawCenteredString(font, "Start a conversation...", cx, sy + 80, 0xFF444444);
+            String status = isDataReceived ? "Welcome to RED-OS Chat" : "[ CONNECTING... ]";
+            g.drawCenteredString(font, status, cx, sy + 80, 0xFF444444);
             return;
         }
 
         int chatY = (int)(sy + h - 50 + scrollPos); 
         int maxTextW = w - 26;
+        float mScale = 0.95f; // Message scale
         int minY = sy + 45;
         g.enableScissor(sx, minY, sx + w, sy + h - 40); 
-        var timeFormat = new java.text.SimpleDateFormat("HH:mm");
+        var timeFormat = new java.text.SimpleDateFormat("dd-MM HH:mm");
 
         for (int i = entries.size() - 1; i >= 0; i--) {
             var entry = entries.get(i);
+            String namePart = entry.sender() + ": ";
+            String message = "§f" + entry.message(); // Color code added BEFORE wrapping
             String time = timeFormat.format(new java.util.Date(entry.timestamp()));
-            String pFix = "[" + time + "] " + entry.sender() + ": ";
-            String message = entry.message();
             
-            var wrappedLines = font.split(Component.literal(pFix + message), maxTextW);
+            // Adjust wrapping for smaller text: more text fits in the same width
+            var wrappedLines = font.split(Component.literal(namePart + message), (int)(maxTextW / mScale));
 
+            // 1. Draw Timestamp (Footer)
+            if (chatY > minY - 10) {
+                org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
+                g.pose().get(oldM);
+                float tScale = 0.5f;
+                g.pose().translate(sx + 8, chatY + 2);
+                g.pose().scale(tScale, tScale);
+                g.drawString(font, time, 0, 0, 0xFF666666, false);
+                g.pose().set(oldM);
+            }
+            chatY -= 7;
+
+            // 2. Draw Message Lines
             for (int j = wrappedLines.size() - 1; j >= 0; j--) {
                 if (chatY < minY - 10) break;
-                g.drawString(font, wrappedLines.get(j), sx + 8, chatY, 0xFFFFFFFF, false);
+                
                 if (j == 0) {
                     float pScale = 0.8f;
-                    int pWidth = (int)(font.width(pFix) * pScale) + 2;
+                    int pWidth = (int)(font.width(namePart) * pScale) + 2;
+                    int pColor = getPlayerColor(entry.sender());
+                    
                     StringBuilder sb = new StringBuilder();
                     wrappedLines.get(j).accept((idx, style, cp) -> { sb.append(Character.toChars(cp)); return true; });
                     String lineContent = sb.toString();
-                    g.fill(sx + 7, chatY - 1, sx + 8 + pWidth, chatY + 9, 0xFF100505);
+
+                    // Draw Name (0.8f)
                     org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
                     g.pose().get(oldM);
                     g.pose().translate(sx + 8, chatY + 1);
                     g.pose().scale(pScale, pScale);
-                    g.drawString(font, "§c" + pFix, 0, 0, 0xFFFFFFFF, false);
+                    g.drawString(font, namePart, 0, 0, pColor, false);
                     g.pose().set(oldM);
+
+                    // Draw Message part (0.95f)
+                    if (lineContent.startsWith(namePart)) {
+                        String msgPart = lineContent.substring(namePart.length());
+                        org.joml.Matrix3x2f msgM = new org.joml.Matrix3x2f();
+                        g.pose().get(msgM);
+                        g.pose().translate(sx + 8 + pWidth, chatY + 0.5f);
+                        g.pose().scale(mScale, mScale);
+                        g.drawString(font, msgPart, 0, 0, 0xFFFFFFFF, false);
+                        g.pose().set(msgM);
+                    }
+                } else {
+                    // Subsequent lines (0.95f)
+                    org.joml.Matrix3x2f msgM = new org.joml.Matrix3x2f();
+                    g.pose().get(msgM);
+                    g.pose().translate(sx + 8, chatY + 0.5f);
+                    g.pose().scale(mScale, mScale);
+                    g.drawString(font, wrappedLines.get(j), 0, 0, 0xFFFFFFFF, false);
+                    g.pose().set(msgM);
                 }
-                chatY -= 10;
+                chatY -= 9; 
             }
-            chatY -= 2;
+            chatY -= 1; 
         }
         g.disableScissor();
         drawScrollbar(g, sx, sy, w, h, entries.size(), maxTextW);
     }
 
     private void drawScrollbar(GuiGraphics g, int sx, int sy, int w, int h, int count, int maxTextW) {
-        if (count > 5) {
+        if (count > 3) {
             int barX = sx + w - 4; int barY = sy + 45; int barH = h - 90;
             g.fill(barX, barY, barX + 1, barY + barH, 0x33FFFFFF); 
             int totalH = calculateTotalHeight(maxTextW);
@@ -224,23 +226,32 @@ public class HandheldAppChat implements HandheldApp {
 
     private int calculateTotalHeight(int maxW) {
         int total = 0;
-        List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> targetList;
+        float mScale = 0.95f;
+        int onlineCount = Minecraft.getInstance().getConnection().getOnlinePlayers().size();
         if (currentTab == Tab.GENERAL) {
-            targetList = clientHistory;
-        } else {
-            targetList = privateHistory.stream()
-                .filter(e -> e.from().equals(selectedPlayerName) || e.to().equals(selectedPlayerName))
-                .map(e -> new net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry(e.from(), e.message(), e.timestamp()))
-                .toList();
-        }
-
-        for (var entry : targetList) {
-            String pFix = "[" + new java.text.SimpleDateFormat("HH:mm").format(new java.util.Date(entry.timestamp())) + "] " + entry.sender() + ": ";
-            int pWidth = (int)(font.width(pFix) * 0.8f) + 2;
-            int msgSpace = maxW - pWidth; 
-            total += font.split(Component.literal(entry.message()), msgSpace).size() * 10 + 2; 
+            for (var entry : clientHistory) {
+                total += font.split(Component.literal(entry.sender() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
+            }
+        } else if (currentTab == Tab.PRIVATE) {
+            if (selectedPlayerName == null) {
+                int pCount = onlineCount - 1;
+                if (pCount <= 0) return 0;
+                return (int)Math.ceil(pCount / 4.0) * 48 + 60;
+            } else {
+                var filtered = privateHistory.stream().filter(e -> e.from().equals(selectedPlayerName) || e.to().equals(selectedPlayerName)).toList();
+                for (var entry : filtered) {
+                    total += font.split(Component.literal(entry.from() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
+                }
+            }
         }
         return total;
+    }
+
+    private int getPlayerColor(String name) {
+        int hash = name.hashCode();
+        float hue = (Math.abs(hash) % 360) / 360.0f;
+        int color = net.minecraft.util.Mth.hsvToRgb(hue, 0.7f, 0.9f);
+        return 0xFF000000 | color;
     }
 
     @Override
@@ -255,7 +266,7 @@ public class HandheldAppChat implements HandheldApp {
     @Override public void tick() {}
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        if (chatInput != null && chatInput.isFocused()) {
+        if (chatInput != null && chatInput.isVisible() && chatInput.isFocused()) {
             if (event.key() == 257 || event.key() == 335) { sendMessage(); return true; }
             return chatInput.keyPressed(event);
         }
@@ -279,9 +290,11 @@ public class HandheldAppChat implements HandheldApp {
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) { 
         targetScroll += (v * 20); HandheldScreen.refreshApp(); return true; 
     }
-    @Override public boolean isEditMode() { return chatInput != null && chatInput.isFocused(); }
+    @Override public boolean isEditMode() { return chatInput != null && chatInput.isVisible() && chatInput.isFocused(); }
     @Override public Optional<GuiEventListener> getInitialFocus() { return Optional.ofNullable(chatInput); }
     public static void clearState() { currentTab = Tab.GENERAL; selectedPlayerName = null; }
+
+    private record DisplayEntry(String sender, String message, long timestamp) {}
 
     private class PlayerButton extends Button {
         private final String playerName;

@@ -61,10 +61,10 @@ jar {
 loom {
     runs {
         client {
-            programArgs "--username", "./RD_v88.sh"
+            // Arguments will be passed via command line for multiplayer tests
         }
         server {
-            // No username needed for server
+            // No changes needed
         }
     }
 }
