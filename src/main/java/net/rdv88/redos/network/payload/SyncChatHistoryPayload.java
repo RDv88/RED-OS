@@ -9,7 +9,7 @@ import net.rdv88.redos.Redos;
 
 import java.util.List;
 
-public record SyncChatHistoryPayload(List<ChatEntry> history) implements CustomPacketPayload {
+public record SyncChatHistoryPayload(List<ChatEntry> history, List<PrivateEntry> privateHistory) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<SyncChatHistoryPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(Redos.MOD_ID, "sync_chat_history"));
 
     public record ChatEntry(String sender, String message, long timestamp) {
@@ -21,8 +21,19 @@ public record SyncChatHistoryPayload(List<ChatEntry> history) implements CustomP
         );
     }
 
+    public record PrivateEntry(String from, String to, String message, long timestamp) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, PrivateEntry> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, PrivateEntry::from,
+                ByteBufCodecs.STRING_UTF8, PrivateEntry::to,
+                ByteBufCodecs.STRING_UTF8, PrivateEntry::message,
+                ByteBufCodecs.VAR_LONG, PrivateEntry::timestamp,
+                PrivateEntry::new
+        );
+    }
+
     public static final StreamCodec<RegistryFriendlyByteBuf, SyncChatHistoryPayload> CODEC = StreamCodec.composite(
             ChatEntry.CODEC.apply(ByteBufCodecs.list()), SyncChatHistoryPayload::history,
+            PrivateEntry.CODEC.apply(ByteBufCodecs.list()), SyncChatHistoryPayload::privateHistory,
             SyncChatHistoryPayload::new
     );
 

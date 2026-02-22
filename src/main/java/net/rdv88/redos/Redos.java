@@ -33,8 +33,9 @@ public class Redos implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        LOGGER.info("Initializing Redos V{}...", VERSION);
+        LOGGER.info("Initializing RED-OS V{}...", VERSION);
         net.rdv88.redos.util.UpdateChecker.checkForUpdates();
+        net.rdv88.redos.util.ChatManager.registerEvents();
 
         // Server-side response receiver (Handshake Enforcement V1.0.5)
         ServerLoginNetworking.registerGlobalReceiver(ModMessages.VERSION_CHECK_ID, (server, handler, understood, buf, synchronizer, sender) -> {
@@ -106,22 +107,14 @@ public class Redos implements ModInitializer {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             String worldName = server.getWorldData().getLevelName();
             TechNetwork.loadDatabase(worldName);
-            net.rdv88.redos.util.ChatManager.loadHistory();
-        });
-
-        // Server-side chat interception for RED-OS Messenger
-        net.fabricmc.fabric.api.message.v1.ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
-            net.rdv88.redos.util.ChatManager.addMessage(sender.getName().getString(), message.signedContent());
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TechNetwork.saveDatabase(false);
-            net.rdv88.redos.util.ChatManager.saveHistory(false);
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             TechNetwork.saveDatabase(false);
-            net.rdv88.redos.util.ChatManager.saveHistory(false);
         }));
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

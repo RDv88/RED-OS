@@ -135,7 +135,7 @@ public class RedosClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(SyncChatHistoryPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
-                HandheldAppChat.updateHistory(payload.history());
+                HandheldAppChat.updateHistory(payload.history(), payload.privateHistory());
             });
         });
 

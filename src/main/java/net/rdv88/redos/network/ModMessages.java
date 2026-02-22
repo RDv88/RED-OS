@@ -81,6 +81,7 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(PurgeGhostLightsPayload.ID, PurgeGhostLightsPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestChatSyncPayload.ID, RequestChatSyncPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendChatMessagePayload.ID, SendChatMessagePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(SendPrivateMessagePayload.ID, SendPrivateMessagePayload.CODEC);
 
         PayloadTypeRegistry.playS2C().register(SyncNetworkNodesPayload.ID, SyncNetworkNodesPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncHandheldDataPayload.ID, SyncHandheldDataPayload.CODEC);
@@ -96,10 +97,18 @@ public class ModMessages {
 
         ServerPlayNetworking.registerGlobalReceiver(RequestChatSyncPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
+                ServerPlayer player = context.player();
+                String playerName = player.getName().getString();
+
                 var history = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
                     .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
                     .toList();
-                ServerPlayNetworking.send(context.player(), new SyncChatHistoryPayload(history));
+
+                var privateHistory = net.rdv88.redos.util.ChatManager.getPrivateHistoryFor(playerName).stream()
+                    .map(e -> new SyncChatHistoryPayload.PrivateEntry(e.from(), e.to(), e.message(), e.timestamp()))
+                    .toList();
+
+                ServerPlayNetworking.send(player, new SyncChatHistoryPayload(history, privateHistory));
             });
         });
 
@@ -116,13 +125,30 @@ public class ModMessages {
                 net.minecraft.network.chat.Component chatComponent = net.minecraft.network.chat.Component.literal("<" + senderName + "> " + messageText);
                 context.server().getPlayerList().broadcastSystemMessage(chatComponent, false);
 
-                // 3. Sync update to all Handheld users
-                var history = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
-                    .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
-                    .toList();
-                for (ServerPlayer p : context.server().getPlayerList().getPlayers()) {
-                    ServerPlayNetworking.send(p, new SyncChatHistoryPayload(history));
+                // 3. Sync update to all Handheld users (General + their own Private)
+                syncChatToAll(context.server());
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(SendPrivateMessagePayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayer sender = context.player();
+                String senderName = sender.getName().getString();
+                String targetName = payload.targetName();
+                String messageText = payload.message();
+
+                // 1. Add to RED-OS Private History
+                net.rdv88.redos.util.ChatManager.addPrivateMessage(senderName, targetName, messageText);
+
+                // 2. Send actual Minecraft Whisper
+                ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
+                if (target != null) {
+                    target.sendSystemMessage(net.minecraft.network.chat.Component.literal("§d" + senderName + " whispers to you: " + messageText));
+                    sender.sendSystemMessage(net.minecraft.network.chat.Component.literal("§dYou whisper to " + targetName + ": " + messageText));
                 }
+
+                // 3. Sync update to both parties
+                syncChatToAll(context.server());
             });
         });
 
@@ -388,5 +414,19 @@ public class ModMessages {
                 }
             });
         });
+    }
+
+    private static void syncChatToAll(net.minecraft.server.MinecraftServer server) {
+        var genHistory = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
+            .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+            .toList();
+
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            String pName = p.getName().getString();
+            var privHistory = net.rdv88.redos.util.ChatManager.getPrivateHistoryFor(pName).stream()
+                .map(e -> new SyncChatHistoryPayload.PrivateEntry(e.from(), e.to(), e.message(), e.timestamp()))
+                .toList();
+            ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, privHistory));
+        }
     }
 }

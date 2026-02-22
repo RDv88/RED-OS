@@ -23,9 +23,14 @@ public class ChatManager {
     private static final int MAX_HISTORY = 100;
 
     public record ChatEntry(String sender, String message, long timestamp) {}
-    private static class ChatData { public List<ChatEntry> history = new ArrayList<>(); }
+    public record PrivateEntry(String from, String to, String message, long timestamp) {}
+    private static class ChatData { 
+        public List<ChatEntry> history = new ArrayList<>(); 
+        public List<PrivateEntry> privateHistory = new ArrayList<>();
+    }
 
     private static final List<ChatEntry> GENERAL_HISTORY = new ArrayList<>();
+    private static final List<PrivateEntry> PRIVATE_HISTORY = new ArrayList<>();
     private static long lastChangeTime = 0;
     private static boolean isDirty = false;
     private static final AtomicBoolean IS_SAVING = new AtomicBoolean(false);
@@ -33,13 +38,23 @@ public class ChatManager {
     public static void addMessage(String sender, String message) {
         GENERAL_HISTORY.add(new ChatEntry(sender, message, System.currentTimeMillis()));
         if (GENERAL_HISTORY.size() > MAX_HISTORY) GENERAL_HISTORY.remove(0);
-        
-        isDirty = true;
-        lastChangeTime = System.currentTimeMillis();
+        isDirty = true; lastChangeTime = System.currentTimeMillis();
+    }
+
+    public static void addPrivateMessage(String from, String to, String message) {
+        PRIVATE_HISTORY.add(new PrivateEntry(from, to, message, System.currentTimeMillis()));
+        if (PRIVATE_HISTORY.size() > 200) PRIVATE_HISTORY.remove(0);
+        isDirty = true; lastChangeTime = System.currentTimeMillis();
     }
 
     public static List<ChatEntry> getGeneralHistory() {
         return new ArrayList<>(GENERAL_HISTORY);
+    }
+
+    public static List<PrivateEntry> getPrivateHistoryFor(String playerName) {
+        return PRIVATE_HISTORY.stream()
+            .filter(e -> e.from().equals(playerName) || e.to().equals(playerName))
+            .toList();
     }
 
     private static File getChatFile() {
@@ -54,12 +69,20 @@ public class ChatManager {
         if (!file.exists()) return;
         try (FileReader reader = new FileReader(file)) {
             ChatData data = GSON.fromJson(reader, ChatData.class);
-            if (data != null && data.history != null) {
-                GENERAL_HISTORY.clear();
-                for (ChatEntry entry : data.history) {
-                    // DECODE from Base64 for RAM usage
-                    String decodedMsg = new String(java.util.Base64.getDecoder().decode(entry.message()), java.nio.charset.StandardCharsets.UTF_8);
-                    GENERAL_HISTORY.add(new ChatEntry(entry.sender(), decodedMsg, entry.timestamp()));
+            if (data != null) {
+                if (data.history != null) {
+                    GENERAL_HISTORY.clear();
+                    for (ChatEntry entry : data.history) {
+                        String decodedMsg = new String(java.util.Base64.getDecoder().decode(entry.message()), java.nio.charset.StandardCharsets.UTF_8);
+                        GENERAL_HISTORY.add(new ChatEntry(entry.sender(), decodedMsg, entry.timestamp()));
+                    }
+                }
+                if (data.privateHistory != null) {
+                    PRIVATE_HISTORY.clear();
+                    for (PrivateEntry entry : data.privateHistory) {
+                        String decodedMsg = new String(java.util.Base64.getDecoder().decode(entry.message()), java.nio.charset.StandardCharsets.UTF_8);
+                        PRIVATE_HISTORY.add(new PrivateEntry(entry.from(), entry.to(), decodedMsg, entry.timestamp()));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -74,14 +97,49 @@ public class ChatManager {
         }
     }
 
+    public static void registerEvents() {
+        // Handle server start/stop internally for chat history
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            loadHistory();
+        });
+
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            saveHistory(false);
+        });
+
+        // 1. Intercept regular chat messages
+        net.fabricmc.fabric.api.message.v1.ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
+            addMessage(sender.getName().getString(), message.signedContent());
+        });
+
+        // 2. Intercept whispers and command messages
+        net.fabricmc.fabric.api.message.v1.ServerMessageEvents.COMMAND_MESSAGE.register((message, sender, params) -> {
+            String senderName = sender.getTextName();
+            String content = message.signedContent();
+            
+            // Extract recipient if available in the Bound params (Mojmap: targetName())
+            if (params.targetName().isPresent()) {
+                String target = params.targetName().get().getString();
+                addPrivateMessage(senderName, target, content);
+            } else {
+                addMessage(senderName, content);
+            }
+        });
+    }
+
     public static void saveHistory(boolean async) {
         if (IS_SAVING.get()) return;
         
-        // Encode messages to Base64 for secure disk storage
         List<ChatEntry> encodedHistory = new ArrayList<>();
         for (ChatEntry entry : GENERAL_HISTORY) {
             String encodedMsg = java.util.Base64.getEncoder().encodeToString(entry.message().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             encodedHistory.add(new ChatEntry(entry.sender(), encodedMsg, entry.timestamp()));
+        }
+
+        List<PrivateEntry> encodedPrivate = new ArrayList<>();
+        for (PrivateEntry entry : PRIVATE_HISTORY) {
+            String encodedMsg = java.util.Base64.getEncoder().encodeToString(entry.message().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            encodedPrivate.add(new PrivateEntry(entry.from(), entry.to(), encodedMsg, entry.timestamp()));
         }
         
         Runnable saveTask = () -> {
@@ -89,8 +147,9 @@ public class ChatManager {
             try (FileWriter writer = new FileWriter(getChatFile())) {
                 ChatData data = new ChatData();
                 data.history = encodedHistory;
+                data.privateHistory = encodedPrivate;
                 GSON.toJson(data, writer);
-                LOGGER.info("RED-OS: Chat history secured and synced to disk ({} messages)", encodedHistory.size());
+                LOGGER.info("RED-OS: Chat history secured and synced to disk (Gen: {}, Priv: {})", encodedHistory.size(), encodedPrivate.size());
             } catch (IOException e) {
                 LOGGER.error("RED-OS: Failed to save chat history", e);
             } finally {
