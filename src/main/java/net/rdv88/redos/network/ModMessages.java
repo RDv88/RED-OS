@@ -104,7 +104,7 @@ public class ModMessages {
                     .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
                     .toList();
 
-                var privateHistory = net.rdv88.redos.util.ChatManager.getPrivateHistoryFor(playerName).stream()
+                var privateHistory = net.rdv88.redos.util.ChatManager.fetchAndClearMail(playerName).stream()
                     .map(e -> new SyncChatHistoryPayload.PrivateEntry(e.from(), e.to(), e.message(), e.timestamp()))
                     .toList();
 
@@ -136,19 +136,24 @@ public class ModMessages {
                 String senderName = sender.getName().getString();
                 String targetName = payload.targetName();
                 String messageText = payload.message();
+                long ts = System.currentTimeMillis();
 
-                // 1. Add to RED-OS Private History
-                net.rdv88.redos.util.ChatManager.addPrivateMessage(senderName, targetName, messageText);
+                var entry = new net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry(senderName, targetName, messageText, ts);
 
-                // 2. Send actual Minecraft Whisper
+                // 1. Route to RECEIVER
                 ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
                 if (target != null) {
+                    // Recipient is ONLINE: Send directly for local storage
+                    ServerPlayNetworking.send(target, new SyncChatHistoryPayload(new ArrayList<>(), List.of(entry)));
                     target.sendSystemMessage(net.minecraft.network.chat.Component.literal("§d" + senderName + " whispers to you: " + messageText));
-                    sender.sendSystemMessage(net.minecraft.network.chat.Component.literal("§dYou whisper to " + targetName + ": " + messageText));
+                } else {
+                    // Recipient is OFFLINE: Buffer in server postbox (mailbox)
+                    net.rdv88.redos.util.ChatManager.addPrivateMessage(senderName, targetName, messageText);
                 }
 
-                // 3. Sync update to both parties
-                syncChatToAll(context.server());
+                // 2. Sync back to SENDER for their own local vault
+                ServerPlayNetworking.send(sender, new SyncChatHistoryPayload(new ArrayList<>(), List.of(entry)));
+                sender.sendSystemMessage(net.minecraft.network.chat.Component.literal("§dYou whisper to " + targetName + ": " + messageText));
             });
         });
 
@@ -422,11 +427,7 @@ public class ModMessages {
             .toList();
 
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            String pName = p.getName().getString();
-            var privHistory = net.rdv88.redos.util.ChatManager.getPrivateHistoryFor(pName).stream()
-                .map(e -> new SyncChatHistoryPayload.PrivateEntry(e.from(), e.to(), e.message(), e.timestamp()))
-                .toList();
-            ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, privHistory));
+            ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, new ArrayList<>()));
         }
     }
 }

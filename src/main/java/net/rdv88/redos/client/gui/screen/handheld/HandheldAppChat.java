@@ -1,18 +1,21 @@
 package net.rdv88.redos.client.gui.screen.handheld;
 
+import com.mojang.authlib.GameProfile;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.PlayerFaceRenderer;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.player.PlayerSkin;
+import net.minecraft.client.resources.DefaultPlayerSkin;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public class HandheldAppChat implements HandheldApp {
     private final Font font = Minecraft.getInstance().font;
@@ -21,6 +24,7 @@ public class HandheldAppChat implements HandheldApp {
     private static Tab currentTab = Tab.GENERAL;
     private static double scrollPos = 0;
     private static double targetScroll = 0;
+    private static int scrollOffset = 0;
     private static long lastRequestTime = 0;
     private static boolean isDataReceived = false;
     private static String selectedPlayerName = null; 
@@ -28,14 +32,50 @@ public class HandheldAppChat implements HandheldApp {
     private static final List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> clientHistory = new ArrayList<>();
     private static final List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry> privateHistory = new ArrayList<>();
     
+    private static void loadLocalHistory() {
+        try {
+            java.nio.file.Path path = net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("redos/messenger_vault.json");
+            if (java.nio.file.Files.exists(path)) {
+                String json = java.nio.file.Files.readString(path);
+                com.google.gson.Gson gson = new com.google.gson.Gson();
+                net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry[] data = gson.fromJson(json, net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry[].class);
+                if (data != null) {
+                    privateHistory.clear();
+                    for (var e : data) privateHistory.add(e);
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private static void saveLocalHistory() {
+        try {
+            java.nio.file.Path dir = net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("redos");
+            if (!java.nio.file.Files.exists(dir)) java.nio.file.Files.createDirectories(dir);
+            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+            java.nio.file.Files.writeString(dir.resolve("messenger_vault.json"), gson.toJson(privateHistory));
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
     private static EditBox chatInput;
 
     public static void updateHistory(List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> history, List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry> pHistory) {
         clientHistory.clear();
         clientHistory.addAll(history);
-        privateHistory.clear();
-        privateHistory.addAll(pHistory);
+        // pHistory here contains "new" mailbox messages from server
+        for (var entry : pHistory) {
+            if (privateHistory.stream().noneMatch(e -> e.timestamp() == entry.timestamp() && e.message().equals(entry.message()))) {
+                privateHistory.add(entry);
+            }
+        }
+        saveLocalHistory();
         isDataReceived = true;
+        HandheldScreen.refreshApp();
+    }
+
+    public static void addIncomingPrivate(net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry entry) {
+        privateHistory.add(entry);
+        if (privateHistory.size() > 500) privateHistory.remove(0);
+        saveLocalHistory();
         HandheldScreen.refreshApp();
     }
 
@@ -65,17 +105,45 @@ public class HandheldAppChat implements HandheldApp {
         }, currentTab == Tab.DISCORD ? 0xFF880000 : 0xFF222222));
 
         if (currentTab == Tab.PRIVATE && selectedPlayerName == null) {
-            var players = Minecraft.getInstance().getConnection().getOnlinePlayers();
-            int px = sx + 12; int py = sy + 50 - (int)scrollPos; int count = 0;
-            for (var p : players) {
-                String name = p.getProfile().name();
-                if (name.equals(Minecraft.getInstance().player.getName().getString())) continue;
-                PlayerButton btn = new PlayerButton(px, py, 36, 36, name, b -> {
-                    selectedPlayerName = name; targetScroll = 0; scrollPos = 0; HandheldScreen.refreshApp();
+            // Get Online IDs for status check
+            var onlineProfiles = Minecraft.getInstance().getConnection().getOnlinePlayers().stream().map(p -> p.getProfile().id()).toList();
+            
+            // Collect all unique participants from local history
+            java.util.Set<String> knownNames = new java.util.HashSet<>();
+            java.util.Map<String, UUID> nameToUuid = new java.util.HashMap<>();
+            for (var entry : privateHistory) {
+                knownNames.add(entry.from()); knownNames.add(entry.to());
+            }
+            // Add currently online players to the known list
+            for (var p : Minecraft.getInstance().getConnection().getOnlinePlayers()) {
+                String n = p.getProfile().name();
+                knownNames.add(n); nameToUuid.put(n, p.getProfile().id());
+            }
+            knownNames.remove(Minecraft.getInstance().player.getName().getString()); // Remove self
+
+            int btnSize = 36;
+            int spacing = 6;
+            int totalGridW = (4 * btnSize) + (3 * spacing);
+            int startX = sx + (w - totalGridW) / 2;
+            int px = startX;
+            int py = sy + 50 + (int)scrollPos; // Reversed scroll for Grid
+            int count = 0;
+            
+            var sortedNames = knownNames.stream().sorted().toList();
+            for (String name : sortedNames) {
+                UUID uuid = nameToUuid.getOrDefault(name, UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes()));
+                boolean isOnline = onlineProfiles.contains(uuid);
+                
+                final String targetName = name;
+                PlayerButton btn = new PlayerButton(px, py, btnSize, btnSize, name, uuid, isOnline, b -> {
+                    selectedPlayerName = targetName; targetScroll = 0; scrollPos = 0; HandheldScreen.refreshApp();
                 });
+                
                 if (py > sy + 40 && py < sy + h - 45) adder.add(btn);
+                
                 count++;
-                if (count % 4 == 0) { px = sx + 12; py += 48; } else { px += 44; }
+                if (count % 4 == 0) { px = startX; py += btnSize + 10; }
+                else { px += btnSize + spacing; }
             }
         } else if (currentTab == Tab.PRIVATE && selectedPlayerName != null) {
             adder.add(new HandheldScreen.NavButton(sx + w - 25, sy + 30, 20, 12, "<-", b -> {
@@ -99,20 +167,26 @@ public class HandheldAppChat implements HandheldApp {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
         int onlineCount = Minecraft.getInstance().getConnection().getOnlinePlayers().size();
+        g.drawString(font, "ONLINE: [" + onlineCount + "]", sx + 5, sy + 4, 0xFFAA0000, false);
         
         if (chatInput != null && chatInput.isVisible()) {
             g.fill(sx + 5, sy + h - 21, sx + w - 5, sy + h - 20, 0xFF440000);
             if (chatInput.getValue().isEmpty()) {
-                g.drawString(font, "Type message...", sx + 7, sy + h - 35, 0xFF444444, false);
+                String hint = (currentTab == Tab.PRIVATE && selectedPlayerName == null) ? "Select a player..." : "Type message...";
+                g.drawString(font, hint, sx + 7, sy + h - 35, 0xFF444444, false);
             }
         }
 
         if (currentTab == Tab.GENERAL) {
-            g.drawString(font, "ONLINE PLAYERS: [" + onlineCount + "]", sx + 8, sy + 35, 0xFF888888, false);
-            drawChatContent(g, sx, sy, w, h, true);
+            drawChatContent(g, sx, sy - 3, w, h, true);
         } else if (currentTab == Tab.PRIVATE) {
             if (selectedPlayerName == null) {
-                g.drawString(font, "ONLINE PLAYERS: [" + (onlineCount - 1) + "]", sx + 8, sy + 35, 0xFF888888, false);
+                org.joml.Matrix3x2f headerM = new org.joml.Matrix3x2f();
+                g.pose().get(headerM);
+                g.pose().translate(sx + 8, sy + 35);
+                g.pose().scale(0.85f, 0.85f);
+                g.drawString(font, "ONLINE PLAYERS: [" + (onlineCount - 1) + "]", 0, 0, 0xFF888888, false);
+                g.pose().set(headerM);
                 drawScrollbar(g, sx, sy, w, h, onlineCount - 1, w - 26);
             } else {
                 g.drawString(font, "CHAT WITH: " + selectedPlayerName, sx + 8, sy + 35, 0xFFAA0000, false);
@@ -138,21 +212,19 @@ public class HandheldAppChat implements HandheldApp {
 
         int chatY = (int)(sy + h - 50 + scrollPos); 
         int maxTextW = w - 26;
-        float mScale = 0.95f; // Message scale
-        int minY = sy + 45;
+        float mScale = 0.95f; 
+        int minY = general ? sy + 32 : sy + 45;
         g.enableScissor(sx, minY, sx + w, sy + h - 40); 
         var timeFormat = new java.text.SimpleDateFormat("dd-MM HH:mm");
 
         for (int i = entries.size() - 1; i >= 0; i--) {
             var entry = entries.get(i);
             String namePart = entry.sender() + ": ";
-            String message = "§f" + entry.message(); // Color code added BEFORE wrapping
+            String message = "§f" + entry.message();
             String time = timeFormat.format(new java.util.Date(entry.timestamp()));
             
-            // Adjust wrapping for smaller text: more text fits in the same width
             var wrappedLines = font.split(Component.literal(namePart + message), (int)(maxTextW / mScale));
 
-            // 1. Draw Timestamp (Footer)
             if (chatY > minY - 10) {
                 org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
                 g.pose().get(oldM);
@@ -164,28 +236,22 @@ public class HandheldAppChat implements HandheldApp {
             }
             chatY -= 7;
 
-            // 2. Draw Message Lines
             for (int j = wrappedLines.size() - 1; j >= 0; j--) {
                 if (chatY < minY - 10) break;
-                
                 if (j == 0) {
                     float pScale = 0.8f;
                     int pWidth = (int)(font.width(namePart) * pScale) + 2;
                     int pColor = getPlayerColor(entry.sender());
-                    
                     StringBuilder sb = new StringBuilder();
                     wrappedLines.get(j).accept((idx, style, cp) -> { sb.append(Character.toChars(cp)); return true; });
                     String lineContent = sb.toString();
-
-                    // Draw Name (0.8f)
+                    g.fill(sx + 7, chatY - 1, sx + 8 + pWidth, chatY + 9, 0xFF100505);
                     org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
                     g.pose().get(oldM);
                     g.pose().translate(sx + 8, chatY + 1);
                     g.pose().scale(pScale, pScale);
                     g.drawString(font, namePart, 0, 0, pColor, false);
                     g.pose().set(oldM);
-
-                    // Draw Message part (0.95f)
                     if (lineContent.startsWith(namePart)) {
                         String msgPart = lineContent.substring(namePart.length());
                         org.joml.Matrix3x2f msgM = new org.joml.Matrix3x2f();
@@ -196,7 +262,6 @@ public class HandheldAppChat implements HandheldApp {
                         g.pose().set(msgM);
                     }
                 } else {
-                    // Subsequent lines (0.95f)
                     org.joml.Matrix3x2f msgM = new org.joml.Matrix3x2f();
                     g.pose().get(msgM);
                     g.pose().translate(sx + 8, chatY + 0.5f);
@@ -204,7 +269,7 @@ public class HandheldAppChat implements HandheldApp {
                     g.drawString(font, wrappedLines.get(j), 0, 0, 0xFFFFFFFF, false);
                     g.pose().set(msgM);
                 }
-                chatY -= 9; 
+                chatY -= 9;
             }
             chatY -= 1; 
         }
@@ -225,23 +290,24 @@ public class HandheldAppChat implements HandheldApp {
     }
 
     private int calculateTotalHeight(int maxW) {
-        int total = 0;
-        float mScale = 0.95f;
+        int total = 0; float mScale = 0.95f;
         int onlineCount = Minecraft.getInstance().getConnection().getOnlinePlayers().size();
         if (currentTab == Tab.GENERAL) {
-            for (var entry : clientHistory) {
-                total += font.split(Component.literal(entry.sender() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
-            }
+            for (var entry : clientHistory) total += font.split(Component.literal(entry.sender() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
         } else if (currentTab == Tab.PRIVATE) {
             if (selectedPlayerName == null) {
-                int pCount = onlineCount - 1;
+                // Collect unique known participants
+                java.util.Set<String> known = new java.util.HashSet<>();
+                for (var e : privateHistory) { known.add(e.from()); known.add(e.to()); }
+                for (var p : Minecraft.getInstance().getConnection().getOnlinePlayers()) known.add(p.getProfile().name());
+                known.remove(Minecraft.getInstance().player.getName().getString());
+                
+                int pCount = known.size();
                 if (pCount <= 0) return 0;
                 return (int)Math.ceil(pCount / 4.0) * 48 + 60;
             } else {
                 var filtered = privateHistory.stream().filter(e -> e.from().equals(selectedPlayerName) || e.to().equals(selectedPlayerName)).toList();
-                for (var entry : filtered) {
-                    total += font.split(Component.literal(entry.from() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
-                }
+                for (var entry : filtered) total += font.split(Component.literal(entry.from() + ": " + entry.message()), (int)(maxW / mScale)).size() * 9 + 10;
             }
         }
         return total;
@@ -250,8 +316,7 @@ public class HandheldAppChat implements HandheldApp {
     private int getPlayerColor(String name) {
         int hash = name.hashCode();
         float hue = (Math.abs(hash) % 360) / 360.0f;
-        int color = net.minecraft.util.Mth.hsvToRgb(hue, 0.7f, 0.9f);
-        return 0xFF000000 | color;
+        return 0xFF000000 | net.minecraft.util.Mth.hsvToRgb(hue, 0.7f, 0.9f);
     }
 
     @Override
@@ -298,22 +363,52 @@ public class HandheldAppChat implements HandheldApp {
 
     private class PlayerButton extends Button {
         private final String playerName;
-        public PlayerButton(int x, int y, int w, int h, String name, OnPress press) {
+        private final UUID playerUuid;
+        private final boolean isOnline;
+        private float marqueePos = 0;
+        private boolean marqueeForward = true;
+
+        public PlayerButton(int x, int y, int w, int h, String name, UUID uuid, boolean online, OnPress press) {
             super(x, y, w, h, Component.empty(), press, DEFAULT_NARRATION);
             this.playerName = name;
+            this.playerUuid = uuid;
+            this.isOnline = online;
         }
+
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
             int color = isHovered() ? 0xFF441111 : 0xFF220505;
             g.fill(getX(), getY(), getX() + width, getY() + height, color);
             g.renderOutline(getX(), getY(), width, height, isHovered() ? 0xFFFF0000 : 0xFF660000);
-            g.renderItem(new ItemStack(Items.PLAYER_HEAD), getX() + (width - 16) / 2, getY() + 4);
+            
+            // 1. Face
+            PlayerSkin skin = DefaultPlayerSkin.get(playerUuid);
+            PlayerFaceRenderer.draw(g, skin, getX() + (width - 24) / 2, getY() + 4, 24);
+            
+            // 2. Status Dot (Top Right of face)
+            int dotColor = isOnline ? 0xFF00FF00 : 0xFFFF0000;
+            g.fill(getX() + width - 12, getY() + 4, getX() + width - 8, getY() + 8, dotColor);
+            
+            // 3. Name Label with Marquee
+            float scale = 0.7f;
+            int nameW = (int)(font.width(playerName) * scale);
+            int availableW = width - 4;
             org.joml.Matrix3x2f oldM = new org.joml.Matrix3x2f();
             g.pose().get(oldM);
-            float scale = 0.7f;
-            int labelX = getX() + (width - (int)(font.width(playerName) * scale)) / 2;
-            g.pose().translate(labelX, getY() + height - 8);
+            g.pose().translate(getX() + 2, getY() + height - 8);
             g.pose().scale(scale, scale);
-            g.drawString(font, playerName, 0, 0, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+
+            if (nameW > availableW) {
+                float maxShift = (nameW - availableW) / scale;
+                if (marqueeForward) marqueePos += 0.5f * delta; else marqueePos -= 0.5f * delta;
+                if (marqueePos >= maxShift) marqueeForward = false; if (marqueePos <= 0) marqueeForward = true;
+                g.enableScissor(getX() + 2, getY() + height - 10, getX() + width - 2, getY() + height);
+                g.pose().translate(-marqueePos, 0);
+                g.drawString(font, playerName, 0, 0, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+                g.disableScissor();
+            } else {
+                g.pose().translate((int)((width - nameW) / 2 / scale), 0);
+                g.drawString(font, playerName, 0, 0, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+            }
             g.pose().set(oldM);
         }
     }

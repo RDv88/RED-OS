@@ -71,9 +71,6 @@ public class IOTagBlock extends FaceAttachedHorizontalDirectionalBlock implement
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             TechNetwork.removeNode(level, pos);
-            if (!moved) {
-                Block.popResource(level, pos, new ItemStack(ModBlocks.IO_TAG));
-            }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);
     }
