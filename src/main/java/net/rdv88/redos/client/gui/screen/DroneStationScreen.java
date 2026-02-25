@@ -51,8 +51,13 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         this.leftPos = 0; this.topPos = 0;
         super.init();
         this.leftPos = 0; this.topPos = 0;
+        
+        // AUTO-PING: Request visible devices for this hub's network immediately
         DroneStationBlockEntity be = (DroneStationBlockEntity) minecraft.level.getBlockEntity(this.menu.getPos());
-        if (be != null) ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(be.getNetworkId()));
+        if (be != null) {
+            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(be.getNetworkId()));
+        }
+        
         ClientPlayNetworking.send(new RequestSyncDroneTasksPayload(this.menu.getPos()));
         refreshButtons();
     }
@@ -235,13 +240,19 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         } else if (viewMode == ViewMode.TASK_STATUS) {
             g.drawCenteredString(font, "§cMISSION TELEMETRY #" + (statusTaskIndex + 1), rx + rWidth/2, 30, 0xFFFFFFFF);
             SyncDroneHubTasksPayload.TaskData t = clientTasks.get(statusTaskIndex);
-            String statusText = translateState(t.droneState(), t);
+            
+            // Real-time Status from Master
+            String statusText = t.statusMessage().isEmpty() ? "§8WAITING FOR DATA..." : t.statusMessage();
             g.drawCenteredString(font, statusText, rx + rWidth/2, 80, 0xFFFFFFFF);
+            
             if (!t.droneState().equals("IDLE")) {
-                g.drawCenteredString(font, "§7Target: §f" + getTagFullName(t.droneState().contains("SOURCE") ? t.src() : t.dst()), rx + rWidth/2, 100, 0xFFFFFFFF);
                 int seconds = t.etaTicks() / 20;
-                String etaStr = seconds > 0 ? "§7ETA: §b" + seconds + " seconds" : "§7ETA: §bArriving...";
-                g.drawCenteredString(font, etaStr, rx + rWidth/2, 115, 0xFFFFFFFF);
+                String etaStr = seconds > 0 ? "§7REMAINING TIME: §b" + seconds + " seconds" : "§7STATUS: §bArriving at destination";
+                g.drawCenteredString(font, etaStr, rx + rWidth/2, 100, 0xFFFFFFFF);
+                
+                // Show current flight stage
+                String stage = "§8Current Mission Phase: §7" + t.droneState();
+                g.drawCenteredString(font, stage, rx + rWidth/2, 120, 0xFF666666);
             }
         } else {
             String step = switch(viewMode) { case SELECT_SOURCE -> "STEP 1: SELECT SOURCE IO TAG"; case SELECT_TARGET -> "STEP 2: SELECT DESTINATION IO TAG"; case SELECT_PRIORITY -> "STEP 3: SELECT MISSION PRIORITY"; case EDIT_OPTIONS -> "MISSION CONFIGURATION"; default -> ""; };

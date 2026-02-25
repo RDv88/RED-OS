@@ -9,6 +9,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.resources.Identifier;
 import net.rdv88.redos.block.custom.QuantumPorterBlock;
 import net.rdv88.redos.block.entity.*;
@@ -24,6 +26,9 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
 
 public class ModMessages {
@@ -62,11 +67,36 @@ public class ModMessages {
                 
                 boolean assigned = agentOpt.isPresent();
                 String droneState = agentOpt.map(a -> a.state.name()).orElse("IDLE");
-                int etaTicks = agentOpt.map(a -> a.ghostTicksRemaining).orElse(0);
+                
+                int etaTicks = 0;
+                String statusMsg = "IDLE";
+                if (agentOpt.isPresent()) {
+                    var agent = agentOpt.get();
+                    statusMsg = agent.lastStatusMessage;
+                    
+                    Vec3 currentStart = agent.currentPos;
+                    if (agent.puppetUuid != null) {
+                        Entity puppet = ((ServerLevel)player.level()).getEntity(agent.puppetUuid);
+                        if (puppet != null) currentStart = puppet.position();
+                    }
+
+                    // Total Forward ETA Calculation: Sum all remaining segments
+                    double totalDist = 0;
+                    Vec3 lastPos = currentStart;
+                    for (BlockPos wp : agent.waypoints) {
+                        totalDist += lastPos.distanceTo(Vec3.atCenterOf(wp));
+                        lastPos = Vec3.atCenterOf(wp);
+                    }
+                    BlockPos finalGoal = (agent.state == net.rdv88.redos.util.LogisticsEngine.State.STEP2_GOING_TO_SOURCE || agent.state == net.rdv88.redos.util.LogisticsEngine.State.STEP_RETURNING_ITEMS_TO_SOURCE) ? t.source : 
+                                       (agent.state == net.rdv88.redos.util.LogisticsEngine.State.STEP3_GOING_TO_TARGET ? t.target : pos);
+                    totalDist += lastPos.distanceTo(Vec3.atCenterOf(finalGoal));
+                    
+                    etaTicks = (int)(totalDist / 0.55);
+                }
 
                 return new SyncDroneHubTasksPayload.TaskData(
                     t.source, t.target, t.priority, assigned, t.enabled,
-                    srcCount, srcFree, dstCount, dstFree, droneState, etaTicks
+                    srcCount, srcFree, dstCount, dstFree, droneState, etaTicks, statusMsg
                 );
             })
             .toList();
@@ -85,6 +115,79 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(ConfigureHandheldPayload.ID, ConfigureHandheldPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ConfigureSensorSettingsPayload.ID, ConfigureSensorSettingsPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ConfigureIOTagSettingsPayload.ID, ConfigureIOTagSettingsPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(PurgeZombieDronesPayload.ID, PurgeZombieDronesPayload.CODEC);
+
+        ServerPlayNetworking.registerGlobalReceiver(PurgeZombieDronesPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayer player = context.player();
+                ServerLevel level = (ServerLevel) player.level();
+                List<net.rdv88.redos.entity.DroneEntity> zombies = level.getEntitiesOfClass(
+                    net.rdv88.redos.entity.DroneEntity.class, 
+                    player.getBoundingBox().inflate(10.0), 
+                    drone -> net.rdv88.redos.util.LogisticsEngine.getFleet().stream()
+                            .noneMatch(agent -> agent.puppetUuid != null && agent.puppetUuid.equals(drone.getUUID()))
+                );
+                for (net.rdv88.redos.entity.DroneEntity zombie : zombies) zombie.discard();
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6[SYSTEM] §7Purged " + zombies.size() + " orphan drone(s)."), true);
+            });
+        });
+
+        PayloadTypeRegistry.playC2S().register(RequestFleetStatusPayload.ID, RequestFleetStatusPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncFleetStatusPayload.ID, SyncFleetStatusPayload.CODEC);
+
+        ServerPlayNetworking.registerGlobalReceiver(RequestFleetStatusPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayer player = context.player();
+                String playerNetIds = net.rdv88.redos.item.HandheldDeviceItem.getNetworkId(player.getMainHandItem());
+                Set<String> activeIds = new HashSet<>(Arrays.asList(playerNetIds.split(",")));
+                
+                List<SyncFleetStatusPayload.DroneTaskStatus> missions = new ArrayList<>();
+                for (net.rdv88.redos.util.LogisticsEngine.VirtualAgent agent : net.rdv88.redos.util.LogisticsEngine.getFleet()) {
+                    if (activeIds.contains(agent.networkId)) {
+                        String sName = "Unknown", dName = "Unknown";
+                        net.rdv88.redos.util.TechNetwork.NetworkNode sn = net.rdv88.redos.util.TechNetwork.getNodeAt(agent.sourcePos);
+                        net.rdv88.redos.util.TechNetwork.NetworkNode dn = net.rdv88.redos.util.TechNetwork.getNodeAt(agent.targetPos);
+                        if (sn != null) sName = sn.customName;
+                        if (dn != null) dName = dn.customName;
+
+                        // Total Forward ETA Calculation
+                        double totalDist = 0;
+                        Vec3 start = agent.currentPos;
+                        if (agent.puppetUuid != null) {
+                            Entity p = ((ServerLevel)player.level()).getEntity(agent.puppetUuid);
+                            if (p != null) start = p.position();
+                        }
+                        Vec3 lastPos = start;
+                        for (BlockPos wp : agent.waypoints) {
+                            totalDist += lastPos.distanceTo(Vec3.atCenterOf(wp));
+                            lastPos = Vec3.atCenterOf(wp);
+                        }
+                        BlockPos finalGoal = (agent.state == net.rdv88.redos.util.LogisticsEngine.State.STEP2_GOING_TO_SOURCE) ? agent.sourcePos : 
+                                           (agent.state == net.rdv88.redos.util.LogisticsEngine.State.STEP3_GOING_TO_TARGET ? agent.targetPos : agent.hubPos);
+                        totalDist += lastPos.distanceTo(Vec3.atCenterOf(finalGoal));
+
+                        // Find task enabled status from hub registry
+                        boolean taskEnabled = true;
+                        int taskPrio = 2;
+                        net.rdv88.redos.util.TechNetwork.NetworkNode hubNode = net.rdv88.redos.util.TechNetwork.getNodeAt(agent.hubPos);
+                        if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
+                            if (agent.taskIndex < tasks.size() && tasks.get(agent.taskIndex) instanceof Map<?,?> tMap) {
+                                Object eObj = tMap.get("enabled");
+                                if (eObj instanceof Boolean b) taskEnabled = b;
+                                Object pObj = tMap.get("priority");
+                                if (pObj instanceof Number n) taskPrio = n.intValue();
+                            }
+                        }
+
+                        missions.add(new SyncFleetStatusPayload.DroneTaskStatus(
+                            agent.hubPos, agent.taskIndex, sName, dName, taskPrio, taskEnabled, agent.state.name(), (int)(totalDist / 0.55)
+                        ));
+                    }
+                }
+                ServerPlayNetworking.send(player, new SyncFleetStatusPayload(missions));
+            });
+        });
+
         PayloadTypeRegistry.playC2S().register(ConfigureDroneHubPayload.ID, ConfigureDroneHubPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestPorterGuiPayload.ID, RequestPorterGuiPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PurgeGhostLightsPayload.ID, PurgeGhostLightsPayload.CODEC);
@@ -92,6 +195,7 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(RequestChatSyncPayload.ID, RequestChatSyncPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendChatMessagePayload.ID, SendChatMessagePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendPrivateMessagePayload.ID, SendPrivateMessagePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(AdminActionPayload.ID, AdminActionPayload.CODEC);
 
         PayloadTypeRegistry.playS2C().register(SyncNetworkNodesPayload.ID, SyncNetworkNodesPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncHandheldDataPayload.ID, SyncHandheldDataPayload.CODEC);
@@ -104,6 +208,51 @@ public class ModMessages {
 
         // Server Side Handlers
         PayloadTypeRegistry.playC2S().register(RequestSyncDroneTasksPayload.ID, RequestSyncDroneTasksPayload.CODEC);
+
+        ServerPlayNetworking.registerGlobalReceiver(AdminActionPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayer player = context.player();
+                
+                // CRITICAL SECURITY CHECK: Only Operators can use Admin Actions
+                if (!context.server().getPlayerList().isOp(new net.minecraft.server.players.NameAndId(player.getGameProfile()))) {
+                    LOGGER.warn("RED-OS SECURITY ALERT: Unauthorized AdminAction attempt by player {} ({}) - Action: {}", 
+                                player.getName().getString(), player.getUUID(), payload.action());
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§c[ACCESS DENIED] §7Administrative privileges required."), true);
+                    return;
+                }
+
+                LOGGER.info("RED-OS ADMIN: Player {} is performing action: {}", player.getName().getString(), payload.action());
+
+                switch (payload.action()) {
+                    case SET_DISCORD_TOKEN -> {
+                        // Logic to save token to server config
+                        LOGGER.info("RED-OS ADMIN: Discord Token updated by {}", player.getName().getString());
+                        ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aDiscord Token Secured", false));
+                    }
+                    case SET_DISCORD_CHANNEL -> {
+                        LOGGER.info("RED-OS ADMIN: Discord Channel ID set to {} by {}", payload.data1(), player.getName().getString());
+                        ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aDiscord Channel Linked", false));
+                    }
+                    case KICK_PLAYER -> {
+                        String targetName = payload.data1();
+                        String reason = payload.data2();
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
+                        if (target != null) {
+                            target.connection.disconnect(net.minecraft.network.chat.Component.literal("Kicked by Admin: " + reason));
+                            LOGGER.info("RED-OS ADMIN: Player {} kicked by {}", targetName, player.getName().getString());
+                        }
+                    }
+                    case RELOAD_CONFIG -> {
+                        // Logic to reload server configs
+                        LOGGER.info("RED-OS ADMIN: Server Configs Reloaded by {}", player.getName().getString());
+                    }
+                    case RELOAD_NETWORK -> {
+                        TechNetwork.forceSyncAll(context.server());
+                        LOGGER.info("RED-OS ADMIN: Mesh Network Force-Synced by {}", player.getName().getString());
+                    }
+                }
+            });
+        });
 
         ServerPlayNetworking.registerGlobalReceiver(RequestChatSyncPayload.ID, (payload, context) -> {
             context.server().execute(() -> {

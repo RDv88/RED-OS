@@ -22,7 +22,7 @@ public record SyncDroneHubTasksPayload(BlockPos hubPos, List<TaskData> tasks, Li
 
     @Override public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return ID; }
 
-    public record TaskData(BlockPos src, BlockPos dst, int prio, boolean assigned, boolean enabled, int srcCount, int srcFree, int dstCount, int dstFree, String droneState, int etaTicks) {
+    public record TaskData(BlockPos src, BlockPos dst, int prio, boolean assigned, boolean enabled, int srcCount, int srcFree, int dstCount, int dstFree, String droneState, int etaTicks, String statusMessage) {
         public static final StreamCodec<RegistryFriendlyByteBuf, TaskData> CODEC = StreamCodec.composite(
             BlockPos.STREAM_CODEC, TaskData::src,
             BlockPos.STREAM_CODEC, TaskData::dst,
@@ -35,6 +35,7 @@ public record SyncDroneHubTasksPayload(BlockPos hubPos, List<TaskData> tasks, Li
             ByteBufCodecs.VAR_INT, TaskData::dstFree,
             ByteBufCodecs.STRING_UTF8, TaskData::droneState,
             ByteBufCodecs.VAR_INT, TaskData::etaTicks,
+            ByteBufCodecs.STRING_UTF8, TaskData::statusMessage,
             TaskData::new
         );
     }

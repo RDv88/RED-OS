@@ -16,6 +16,7 @@ public class PermissionHandler {
 
         boolean hasMain = player.isCreative();
         boolean hasHighTech = player.isCreative();
+        boolean isAdmin = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(new net.minecraft.server.players.NameAndId(player.getGameProfile()));
 
         if (!player.isCreative() && player.level().getServer() != null) {
             AdvancementHolder mainAdv = player.level().getServer().getAdvancements().get(ADV_MAIN);
@@ -29,6 +30,6 @@ public class PermissionHandler {
         }
 
         // Push version along with permissions as a secondary safety net
-        ServerPlayNetworking.send(player, new SyncPermissionsPayload(hasMain, hasHighTech, Redos.VERSION));
+        ServerPlayNetworking.send(player, new SyncPermissionsPayload(hasMain, hasHighTech, isAdmin, Redos.VERSION));
     }
 }

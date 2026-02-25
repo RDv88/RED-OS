@@ -6,6 +6,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.rdv88.redos.entity.DroneEntity;
@@ -28,7 +29,7 @@ public class LogisticsEngine {
     private static long lastSaveTime = 0;
     private static boolean initialScanDone = false;
 
-    public enum State { STEP1_INITIALIZING, STEP2_GOING_TO_SOURCE, STEP3_GOING_TO_TARGET, STEP4_RETURNING_HOME, STEP5_TERMINATING }
+    public enum State { STEP1_INITIALIZING, STEP2_GOING_TO_SOURCE, STEP3_GOING_TO_TARGET, STEP4_RETURNING_HOME, STEP5_TERMINATING, STEP_RETURNING_ITEMS_TO_SOURCE }
 
     public static class VirtualAgent {
         public final UUID uuid;
@@ -41,6 +42,7 @@ public class LogisticsEngine {
         public State state;
         public ItemStack carriedItem = ItemStack.EMPTY;
         public int taskIndex = -1;
+        public String lastStatusMessage = "Initializing...";
         public transient UUID puppetUuid = null;
         public transient boolean handshakeReceived = false;
         public transient int ghostTicksRemaining = 0;
@@ -127,7 +129,15 @@ public class LogisticsEngine {
     private static class AgentData { public String uuid, networkId, state, itemBase64; public int hubX, hubY, hubZ, srcX, srcY, srcZ, dstX, dstY, dstZ; public double curX, curY, curZ; public int homeSlot, taskIndex; }
 
     public static void tick(ServerLevel level) {
-        if (!initialScanDone) { loadFleet(level); initialScanDone = true; }
+        if (!initialScanDone) {
+            loadFleet(level);
+            if (!TechNetwork.SERVER_REGISTRY.isEmpty()) {
+                for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) {
+                    if (node.type == TechNetwork.NodeType.DRONE_STATION) processPlanningForHub(level, node.pos);
+                }
+            }
+            initialScanDone = true;
+        }
         if (System.currentTimeMillis() - lastSaveTime > SAVE_DELAY_MS) { saveFleet(level, true); lastSaveTime = System.currentTimeMillis(); }
         for (VirtualAgent agent : FLEET.values()) {
             boolean playerNearby = level.players().stream().anyMatch(p -> p.position().distanceToSqr(agent.currentPos) < 4096);
@@ -141,31 +151,62 @@ public class LogisticsEngine {
         DroneEntity p = getPuppet(level, agent);
         if (p == null) return;
         agent.currentPos = p.position();
-        p.setCarriedItem(agent.carriedItem.copy()); // Cargo Hard-Sync Fix!
+        p.setCarriedItem(agent.carriedItem.copy());
 
-        if (!agent.handshakeReceived && agent.state != State.STEP1_INITIALIZING) return;
+        if (!agent.handshakeReceived && agent.state != State.STEP1_INITIALIZING) {
+            // Update tracking status for GUI
+            BlockPos nextGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
+                               (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
+                                agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
+                                agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
+            
+            if (nextGoal != null) {
+                if (!agent.waypoints.isEmpty()) {
+                    agent.lastStatusMessage = String.format("§7Navigating to Transmitter: §f%d, %d, %d", nextGoal.getX(), nextGoal.getY(), nextGoal.getZ());
+                } else {
+                    agent.lastStatusMessage = String.format("§bApproaching Goal: §f%d, %d, %d", nextGoal.getX(), nextGoal.getY(), nextGoal.getZ());
+                }
+            }
+            return;
+        }
 
         switch (agent.state) {
             case STEP1_INITIALIZING -> { 
                 agent.state = State.STEP2_GOING_TO_SOURCE; 
                 p.setTacticalObjective(agent.sourcePos);
-                agent.handshakeReceived = true;
+                agent.handshakeReceived = false; 
+                agent.lastStatusMessage = "§eEngaging collection protocols...";
             }
             case STEP2_GOING_TO_SOURCE -> {
                 agent.carriedItem = callTagTransaction(level, agent.sourcePos, true, ItemStack.EMPTY);
                 p.setCarriedItem(agent.carriedItem.copy());
                 agent.state = State.STEP3_GOING_TO_TARGET;
                 List<BlockPos> path = TechNetwork.findMeshPath(level, agent.sourcePos, agent.targetPos, agent.networkId);
-                if (path.isEmpty() && !agent.sourcePos.equals(agent.targetPos)) { handleAsylum(level, agent, agent.sourcePos); return; }
+                if (path.isEmpty() && !agent.sourcePos.equals(agent.targetPos)) { 
+                    agent.lastStatusMessage = "§cPath blocked to target! Seeking Asylum.";
+                    handleAsylum(level, agent, agent.sourcePos); 
+                    return; 
+                }
                 agent.waypoints = new ArrayList<>(path);
                 p.setTacticalObjective(agent.targetPos);
                 agent.handshakeReceived = false; 
+                agent.lastStatusMessage = "§aItems secured. En route to Target.";
             }
             case STEP3_GOING_TO_TARGET -> {
                 ItemStack left = callTagTransaction(level, agent.targetPos, false, agent.carriedItem);
                 agent.carriedItem = left;
                 p.setCarriedItem(agent.carriedItem.copy());
-                if (agent.carriedItem.isEmpty()) {
+                
+                if (!agent.carriedItem.isEmpty()) {
+                    // DESTINATION FULL: Return to Source Protocol
+                    agent.lastStatusMessage = "§eTarget Full! Returning to Source.";
+                    agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE;
+                    List<BlockPos> path = TechNetwork.findMeshPath(level, agent.targetPos, agent.sourcePos, agent.networkId);
+                    if (path.isEmpty() && !agent.targetPos.equals(agent.sourcePos)) { handleAsylum(level, agent, agent.targetPos); return; }
+                    agent.waypoints = new ArrayList<>(path);
+                    p.setTacticalObjective(agent.sourcePos);
+                } else {
+                    // Mission Successful: Try to shuttle or return home
                     TechNetwork.NetworkNode hubNode = TechNetwork.getNodeAt(agent.hubPos);
                     if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
                         int nextTaskIdx = findBestTaskIndex(level, agent.hubPos, tasks, agent.uuid);
@@ -180,16 +221,37 @@ public class LogisticsEngine {
                             if (path.isEmpty() && !currentChest.equals(agent.sourcePos)) { handleAsylum(level, agent, currentChest); return; }
                             agent.waypoints = new ArrayList<>(path);
                             p.setTacticalObjective(agent.sourcePos);
+                            agent.lastStatusMessage = "§bShuttling to next assignment.";
                         } else {
                             agent.state = State.STEP4_RETURNING_HOME;
                             List<BlockPos> returnPath = TechNetwork.findMeshPath(level, agent.targetPos, agent.hubPos, agent.networkId);
                             if (returnPath.isEmpty() && !agent.targetPos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.targetPos); return; }
                             agent.waypoints = new ArrayList<>(returnPath);
                             p.setTacticalObjective(agent.hubPos);
+                            agent.lastStatusMessage = "§7Task complete. Returning to Hub.";
                         }
-                    } else { agent.state = State.STEP4_RETURNING_HOME; p.setTacticalObjective(agent.hubPos); }
-                } else { agent.state = State.STEP4_RETURNING_HOME; p.setTacticalObjective(agent.hubPos); }
+                    } else { agent.state = State.STEP4_RETURNING_HOME; p.setTacticalObjective(agent.hubPos); agent.lastStatusMessage = "§7Returning to Hub."; }
+                }
                 agent.handshakeReceived = false; 
+            }
+            case STEP_RETURNING_ITEMS_TO_SOURCE -> {
+                ItemStack left = callTagTransaction(level, agent.sourcePos, false, agent.carriedItem);
+                agent.carriedItem = left;
+                p.setCarriedItem(agent.carriedItem.copy());
+                if (!agent.carriedItem.isEmpty()) {
+                    agent.lastStatusMessage = "§cAll storage full! Dropping items.";
+                    ItemEntity ie = new ItemEntity(level, agent.sourcePos.getX()+0.5, agent.sourcePos.getY()+1.0, agent.sourcePos.getZ()+0.5, agent.carriedItem.copy());
+                    level.addFreshEntity(ie);
+                    agent.carriedItem = ItemStack.EMPTY;
+                    p.setCarriedItem(ItemStack.EMPTY);
+                }
+                agent.state = State.STEP4_RETURNING_HOME;
+                List<BlockPos> path = TechNetwork.findMeshPath(level, agent.sourcePos, agent.hubPos, agent.networkId);
+                if (path.isEmpty() && !agent.sourcePos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.sourcePos); return; }
+                agent.waypoints = new ArrayList<>(path);
+                p.setTacticalObjective(agent.hubPos);
+                agent.handshakeReceived = false;
+                agent.lastStatusMessage = "§7Returning to Hub.";
             }
             case STEP4_RETURNING_HOME -> {
                 if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) {
@@ -197,6 +259,7 @@ public class LogisticsEngine {
                     hub.onDroneReturn(agent.uuid, agent.homeSlot);
                 }
                 agent.state = State.STEP5_TERMINATING; agent.handshakeReceived = false; 
+                agent.lastStatusMessage = "§8Docking successful.";
             }
             case STEP5_TERMINATING -> {}
         }
@@ -208,11 +271,19 @@ public class LogisticsEngine {
             agent.ghostTicksRemaining--; 
             BlockPos targetGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
                                  (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
-                                  agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : agent.hubPos);
+                                  agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
+                                  agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
             if (targetGoal != null) {
                 Vec3 targetVec = Vec3.atCenterOf(targetGoal).add(0, 1.9, 0);
                 Vec3 dir = targetVec.subtract(agent.currentPos).normalize();
                 agent.currentPos = agent.currentPos.add(dir.scale(0.55));
+                
+                // Update Ghost Status
+                if (!agent.waypoints.isEmpty()) {
+                    agent.lastStatusMessage = String.format("§8[GHOST] §7Approaching Transmitter: %d,%d,%d", targetGoal.getX(), targetGoal.getY(), targetGoal.getZ());
+                } else {
+                    agent.lastStatusMessage = String.format("§8[GHOST] §bEn route to Target: %d,%d,%d", targetGoal.getX(), targetGoal.getY(), targetGoal.getZ());
+                }
             }
             return; 
         }
@@ -229,6 +300,7 @@ public class LogisticsEngine {
                 agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.hubPos, agent.sourcePos, agent.networkId));
                 BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
                 agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
+                agent.lastStatusMessage = "§8[GHOST] §eInitializing flight...";
             }
             case STEP2_GOING_TO_SOURCE -> {
                 agent.carriedItem = callTagTransaction(level, agent.sourcePos, true, ItemStack.EMPTY);
@@ -239,11 +311,20 @@ public class LogisticsEngine {
                     if (agent.waypoints.isEmpty() && !agent.sourcePos.equals(agent.targetPos)) { handleAsylum(level, agent, agent.sourcePos); return; }
                     BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.targetPos : agent.waypoints.get(0);
                     agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
+                    agent.lastStatusMessage = "§8[GHOST] §aItems collected.";
                 } else agent.ghostTicksRemaining = 100;
             }
             case STEP3_GOING_TO_TARGET -> {
                 ItemStack left = callTagTransaction(level, agent.targetPos, false, agent.carriedItem);
                 agent.carriedItem = left;
+                if (!agent.carriedItem.isEmpty()) {
+                    agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE;
+                    agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.targetPos, agent.sourcePos, agent.networkId));
+                    BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
+                    agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
+                    agent.lastStatusMessage = "§8[GHOST] §eTarget Full! Returning.";
+                    return;
+                }
                 if (agent.carriedItem.isEmpty()) {
                     TechNetwork.NetworkNode hubNode = TechNetwork.getNodeAt(agent.hubPos);
                     if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
@@ -260,6 +341,7 @@ public class LogisticsEngine {
                             if (agent.waypoints.isEmpty() && !lastT.equals(agent.sourcePos)) { handleAsylum(level, agent, lastT); return; }
                             BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
                             agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
+                            agent.lastStatusMessage = "§8[GHOST] §bShuttling.";
                             return;
                         }
                     }
@@ -268,6 +350,20 @@ public class LogisticsEngine {
                 agent.state = State.STEP4_RETURNING_HOME;
                 agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.targetPos, agent.hubPos, agent.networkId));
                 if (agent.waypoints.isEmpty() && !agent.targetPos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.targetPos); return; }
+                BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.hubPos : agent.waypoints.get(0);
+                agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
+                agent.lastStatusMessage = "§8[GHOST] §7Returning to base.";
+            }
+            case STEP_RETURNING_ITEMS_TO_SOURCE -> {
+                ItemStack left = callTagTransaction(level, agent.sourcePos, false, agent.carriedItem);
+                agent.carriedItem = left;
+                if (!agent.carriedItem.isEmpty()) {
+                    ItemEntity ie = new ItemEntity(level, agent.sourcePos.getX()+0.5, agent.sourcePos.getY()+1.0, agent.sourcePos.getZ()+0.5, agent.carriedItem.copy());
+                    level.addFreshEntity(ie);
+                    agent.carriedItem = ItemStack.EMPTY;
+                }
+                agent.state = State.STEP4_RETURNING_HOME;
+                agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.sourcePos, agent.hubPos, agent.networkId));
                 BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.hubPos : agent.waypoints.get(0);
                 agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
             }
@@ -297,7 +393,7 @@ public class LogisticsEngine {
         p.setCarriedItem(agent.carriedItem.copy());
         if (level.addFreshEntity(p)) {
             agent.puppetUuid = p.getUUID();
-            BlockPos goal = switch (agent.state) { case STEP2_GOING_TO_SOURCE -> agent.sourcePos; case STEP3_GOING_TO_TARGET -> agent.targetPos; case STEP4_RETURNING_HOME -> agent.hubPos; default -> null; };
+            BlockPos goal = switch (agent.state) { case STEP2_GOING_TO_SOURCE -> agent.sourcePos; case STEP3_GOING_TO_TARGET -> agent.targetPos; case STEP_RETURNING_ITEMS_TO_SOURCE -> agent.sourcePos; case STEP4_RETURNING_HOME -> agent.hubPos; default -> null; };
             if (goal != null) p.setTacticalObjective(goal);
             agent.handshakeReceived = false; 
         }
@@ -309,7 +405,10 @@ public class LogisticsEngine {
             if (e instanceof DroneEntity p) {
                 agent.currentPos = p.position();
                 agent.carriedItem = p.getCarriedItem().copy(); 
-                BlockPos nextGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : agent.hubPos);
+                BlockPos nextGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
+                                   (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
+                                    agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
+                                    agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
                 if (nextGoal != null) agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
             }
             if (e != null) e.discard(); 
@@ -380,8 +479,10 @@ public class LogisticsEngine {
     private static void handleAsylum(ServerLevel level, VirtualAgent agent, BlockPos asylumPos) {
         if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) { hub.getInventory().removeItem(agent.homeSlot, 1); }
         ItemStack droneItem = new ItemStack(ModItems.DRONE_UNIT);
-        callTagTransaction(level, asylumPos, false, droneItem);
-        if (!agent.carriedItem.isEmpty()) callTagTransaction(level, asylumPos, false, agent.carriedItem);
+        ItemStack leftDrone = callTagTransaction(level, asylumPos, false, droneItem);
+        ItemStack leftCargo = agent.carriedItem.isEmpty() ? ItemStack.EMPTY : callTagTransaction(level, asylumPos, false, agent.carriedItem);
+        if (!leftDrone.isEmpty()) { ItemEntity ie = new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftDrone); level.addFreshEntity(ie); }
+        if (!leftCargo.isEmpty()) { ItemEntity ie = new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftCargo); level.addFreshEntity(ie); }
         removePuppet(level, agent); FLEET.remove(agent.uuid);
     }
 

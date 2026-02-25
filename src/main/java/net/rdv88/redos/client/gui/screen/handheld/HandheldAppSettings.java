@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import net.rdv88.redos.network.payload.SyncProfilesPayload;
 import net.rdv88.redos.network.payload.PurgeGhostLightsPayload;
+import net.rdv88.redos.network.payload.PurgeZombieDronesPayload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -65,10 +66,15 @@ public class HandheldAppSettings implements HandheldApp {
     }
 
     private void setupTroubleshooting(int sx, int sy, int cx, WidgetAdder adder) {
-        adder.add(new HandheldScreen.NavButton(cx - 75, sy + 60, 150, 20, "PURGE GHOST LIGHTS", b -> {
+        adder.add(new HandheldScreen.NavButton(cx - 75, sy + 40, 150, 20, "PURGE GHOST LIGHTS", b -> {
             ClientPlayNetworking.send(new PurgeGhostLightsPayload());
             HandheldScreen.showToast("SIGNAL SENT");
         }, 0xFFAA0000));
+
+        adder.add(new HandheldScreen.NavButton(cx - 75, sy + 65, 150, 20, "PURGE ZOMBIE DRONES", b -> {
+            ClientPlayNetworking.send(new PurgeZombieDronesPayload());
+            HandheldScreen.showToast("SIGNAL SENT");
+        }, 0xFFAA5500));
     }
 
     private void setupMainSettings(int sx, int sy, int cx, int h, int listY, WidgetAdder adder, Minecraft mc) {

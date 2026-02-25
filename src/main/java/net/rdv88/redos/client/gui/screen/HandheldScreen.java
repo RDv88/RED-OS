@@ -143,6 +143,7 @@ public class HandheldScreen extends Screen {
             case "HIGHTECH" -> new HandheldAppHighTech(VISIBLE_DEVICES);
             case "LOGISTICS" -> new HandheldAppLogistics(VISIBLE_DEVICES);
             case "CHAT" -> new HandheldAppChat();
+            case "ADMIN" -> new HandheldAppAdmin();
             default -> new HandheldAppHome();
         };
 
@@ -171,6 +172,7 @@ public class HandheldScreen extends Screen {
         else if (currentApp instanceof HandheldAppSettings app) app.back();
         else if (currentApp instanceof HandheldAppLogistics app) app.back();
         else if (currentApp instanceof HandheldAppChat app) app.back();
+        else if (currentApp instanceof HandheldAppAdmin app) app.back();
         else requestAppSwitch("HOME");
     }
 
@@ -183,6 +185,7 @@ public class HandheldScreen extends Screen {
         else if (currentApp instanceof HandheldAppHighTech app) app.save();
         else if (currentApp instanceof HandheldAppLogistics app) app.save();
         else if (currentApp instanceof HandheldAppChat app) app.sendMessage();
+        else if (currentApp instanceof HandheldAppAdmin app) app.save();
     }
 
     @Override public boolean isPauseScreen() { return false; }
@@ -286,6 +289,12 @@ public class HandheldScreen extends Screen {
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
         if (currentApp != null) return currentApp.mouseScrolled(mouseX, mouseY, h, v);
         return super.mouseScrolled(mouseX, mouseY, h, v);
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean isSecondary) {
+        if (currentApp != null && currentApp.mouseClicked(event.x(), event.y(), event.buttonInfo().button())) return true;
+        return super.mouseClicked(event, isSecondary);
     }
 
     @Override

@@ -87,7 +87,7 @@ public class RedosClient implements ClientModInitializer {
                 String clientVer = Redos.VERSION.trim();
                 setVersionReceived(true);
                 setServerVersion(serverVer);
-                PermissionCache.update(payload.hasMainAccess(), payload.hasHighTechAccess());
+                PermissionCache.update(payload.hasMainAccess(), payload.hasHighTechAccess(), payload.isAdmin());
                 handleVersionMismatch(serverVer, clientVer, context.client());
                 HandheldScreen.refreshApp();
             });
@@ -131,6 +131,12 @@ public class RedosClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(ActionFeedbackPayload.ID, (payload, context) -> {
             context.client().execute(() -> { HandheldScreen.showToast(payload.message()); });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(SyncFleetStatusPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                net.rdv88.redos.client.gui.screen.handheld.HandheldAppLogistics.updateMissionList(payload.activeMissions());
+            });
         });
 
         ClientPlayNetworking.registerGlobalReceiver(SyncChatHistoryPayload.ID, (payload, context) -> {

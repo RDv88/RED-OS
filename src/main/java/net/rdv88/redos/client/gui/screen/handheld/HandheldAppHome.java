@@ -35,13 +35,19 @@ public class HandheldAppHome implements HandheldApp {
         int row2Y = 35 + size + 25;
         apps.add(new AppButton(startX, row2Y, size, size, new ItemStack(Items.DAYLIGHT_DETECTOR), "Sensors", "SENSORS", sx, sy, w, h));
         apps.add(new AppButton(startX + size + gap, row2Y, size, size, new ItemStack(Items.ECHO_SHARD), "Quantum Link", "HIGHTECH", sx, sy, w, h));
-        apps.add(new AppButton(startX + (size + gap) * 2, row2Y, size, size, new ItemStack(Items.CHEST), "Logistic Hub", "LOGISTICS", sx, sy, w, h));
+        apps.add(new AppButton(startX + (size + gap) * 2, row2Y, size, size, new ItemStack(Items.CHEST), "Logistics", "LOGISTICS", sx, sy, w, h));
 
         // Row 3: SYSTEM FOUNDATION
         int row3Y = row2Y + size + 25;
         apps.add(new AppButton(startX, row3Y, size, size, new ItemStack(Items.LIGHTNING_ROD), "Transmitters", "TRANSMITTERS", sx, sy, w, h));
         apps.add(new AppButton(startX + size + gap, row3Y, size, size, new ItemStack(Items.RECOVERY_COMPASS), "Network ID's", "NETWORK", sx, sy, w, h));
         apps.add(new AppButton(startX + (size + gap) * 2, row3Y, size, size, new ItemStack(Items.REPEATER), "Settings", "SETTINGS", sx, sy, w, h));
+
+        // Row 4: SYSTEM ADMIN (Only for OP)
+        if (net.rdv88.redos.util.PermissionCache.isAdmin()) {
+            int row4Y = row3Y + size + 25;
+            apps.add(new AppButton(startX + size + gap, row4Y, size, size, new ItemStack(Items.COMMAND_BLOCK), "Admin", "ADMIN", sx, sy, w, h));
+        }
 
         for (AppButton app : apps) adder.add(app);
     }
@@ -76,7 +82,7 @@ public class HandheldAppHome implements HandheldApp {
         int barH = h - 50;
         g.fill(barX, barY, barX + 1, barY + barH, 0x33FFFFFF); 
         
-        double maxScroll = 80; 
+        double maxScroll = 140; 
         int handleH = 25;
         int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
         g.fill(barX - 1, handleY, barX + 2, handleY + handleH, 0xAAFFFFFF); 
@@ -87,7 +93,7 @@ public class HandheldAppHome implements HandheldApp {
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) { return false; }
     
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) { 
-        targetScroll = Math.clamp(targetScroll - (verticalAmount * 40), 0, 80);
+        targetScroll = Math.clamp(targetScroll - (verticalAmount * 40), 0, 140);
         return true; 
     }
 

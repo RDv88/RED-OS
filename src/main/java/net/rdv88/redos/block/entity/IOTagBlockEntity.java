@@ -50,7 +50,15 @@ public class IOTagBlockEntity extends BlockEntity {
             }
         }
         if (!found) { count = 0; free = 0; }
-        if (count != lastItemCount || free != lastFreeSpace) { lastItemCount = count; lastFreeSpace = free; registerInNetwork(); }
+        if (count != lastItemCount || free != lastFreeSpace) { 
+            lastItemCount = count; 
+            lastFreeSpace = free; 
+            registerInNetwork(); 
+            // RESTORED: Notify Master of the change
+            if (level instanceof net.minecraft.server.level.ServerLevel sl) {
+                net.rdv88.redos.util.LogisticsEngine.onNetworkUpdate(sl, worldPosition);
+            }
+        }
     }
 
     private Container getFullInventory(Container c, BlockPos pos) {
