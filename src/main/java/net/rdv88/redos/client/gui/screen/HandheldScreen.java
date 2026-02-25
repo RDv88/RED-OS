@@ -28,7 +28,7 @@ public class HandheldScreen extends Screen {
     private final Set<String> activeIds;
     private final List<SyncProfilesPayload.ProfileData> savedProfiles = new ArrayList<>();
 
-    private static List<SyncHandheldDataPayload.DeviceEntry> VISIBLE_DEVICES = new ArrayList<>();
+    public static List<SyncHandheldDataPayload.DeviceEntry> VISIBLE_DEVICES = new ArrayList<>();
     private static HandheldScreen currentInstance = null;
     private static String selectedDeviceName = "Unknown";
 

@@ -268,10 +268,7 @@ public class TechNetwork {
                 // Notify all Hubs on the same network that this tag is gone
                 for (NetworkNode other : SERVER_REGISTRY.values()) {
                     if (other.type == NodeType.DRONE_STATION && other.networkId.equals(node.networkId)) {
-                        BlockEntity be = serverLevel.getBlockEntity(other.pos);
-                        if (be instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
-                            hub.handleTagRemoval(pos);
-                        }
+                        // Hub connection cleanup is now handled by LogisticsEngine
                     }
                 }
             }

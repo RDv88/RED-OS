@@ -102,15 +102,18 @@ public class Redos implements ModInitializer {
             CameraViewHandler.tick(server);
             TechNetwork.tickLiveUpdates(server);
             net.rdv88.redos.util.ChatManager.tick();
+            net.rdv88.redos.util.LogisticsEngine.tick(server.overworld());
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             String worldName = server.getWorldData().getLevelName();
             TechNetwork.loadDatabase(worldName);
+            net.rdv88.redos.util.LogisticsEngine.loadFleet(server.overworld());
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TechNetwork.saveDatabase(false);
+            net.rdv88.redos.util.LogisticsEngine.saveFleet(server.overworld(), false);
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

@@ -30,38 +30,47 @@ public class ModMessages {
     private static final Logger LOGGER = LoggerFactory.getLogger("redos-network");
     public static final Identifier VERSION_CHECK_ID = Identifier.fromNamespaceAndPath("redos", "version_check");
 
-    private static void syncHubTasks(DroneStationBlockEntity hub, ServerPlayer player, BlockPos pos) {
+    public static void syncHubTasks(DroneStationBlockEntity hub, ServerPlayer player, BlockPos pos) {
+        List<Boolean> lockedSlots = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            int slot = i;
+            lockedSlots.add(net.rdv88.redos.util.LogisticsEngine.getFleet().stream()
+                .anyMatch(a -> a.hubPos.equals(pos) && a.homeSlot == slot));
+        }
+
         List<SyncDroneHubTasksPayload.TaskData> taskData = hub.getTasks().stream()
             .map(t -> {
                 int srcCount = 0, srcFree = 0, dstCount = 0, dstFree = 0;
-                
-                // Fetch live RAM data for Source
                 TechNetwork.NetworkNode srcNode = TechNetwork.getNodeAt(t.source);
                 if (srcNode != null) {
                     Object countObj = srcNode.settings.get("item_count");
                     if (countObj instanceof Number num) srcCount = num.intValue();
-                    
                     Object freeObj = srcNode.settings.get("free_space");
                     if (freeObj instanceof Number num) srcFree = num.intValue();
                 }
-
-                // Fetch live RAM data for Target
                 TechNetwork.NetworkNode dstNode = TechNetwork.getNodeAt(t.target);
                 if (dstNode != null) {
                     Object countObj = dstNode.settings.get("item_count");
                     if (countObj instanceof Number num) dstCount = num.intValue();
-                    
                     Object freeObj = dstNode.settings.get("free_space");
                     if (freeObj instanceof Number num) dstFree = num.intValue();
                 }
 
+                var agentOpt = net.rdv88.redos.util.LogisticsEngine.getFleet().stream()
+                    .filter(a -> a.hubPos.equals(pos) && a.taskIndex == hub.getTasks().indexOf(t))
+                    .findFirst();
+                
+                boolean assigned = agentOpt.isPresent();
+                String droneState = agentOpt.map(a -> a.state.name()).orElse("IDLE");
+                int etaTicks = agentOpt.map(a -> a.ghostTicksRemaining).orElse(0);
+
                 return new SyncDroneHubTasksPayload.TaskData(
-                    t.source, t.target, t.priority, t.isAssigned, t.enabled,
-                    srcCount, srcFree, dstCount, dstFree
+                    t.source, t.target, t.priority, assigned, t.enabled,
+                    srcCount, srcFree, dstCount, dstFree, droneState, etaTicks
                 );
             })
             .toList();
-        ServerPlayNetworking.send(player, new SyncDroneHubTasksPayload(pos, taskData));
+        ServerPlayNetworking.send(player, new SyncDroneHubTasksPayload(pos, taskData, lockedSlots));
     }
 
     public static void registerNetworking() {
@@ -79,6 +88,7 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(ConfigureDroneHubPayload.ID, ConfigureDroneHubPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestPorterGuiPayload.ID, RequestPorterGuiPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PurgeGhostLightsPayload.ID, PurgeGhostLightsPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(PurgeDronesPayload.ID, PurgeDronesPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestChatSyncPayload.ID, RequestChatSyncPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendChatMessagePayload.ID, SendChatMessagePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SendPrivateMessagePayload.ID, SendPrivateMessagePayload.CODEC);
@@ -417,6 +427,11 @@ public class ModMessages {
                         }
                     }
                 }
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(PurgeDronesPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                net.rdv88.redos.util.LogisticsEngine.forceHubReset((ServerLevel)context.player().level(), payload.hubPos());
             });
         });
     }

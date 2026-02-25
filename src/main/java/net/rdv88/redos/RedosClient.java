@@ -114,7 +114,7 @@ public class RedosClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SyncDroneHubTasksPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 if (Minecraft.getInstance().screen instanceof net.rdv88.redos.client.gui.screen.DroneStationScreen screen) {
-                    screen.updateTaskList(payload.tasks());
+                    screen.updateTaskList(payload.tasks(), payload.lockedSlots());
                 }
             });
         });
