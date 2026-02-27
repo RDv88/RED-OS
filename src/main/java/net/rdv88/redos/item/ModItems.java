@@ -28,7 +28,7 @@ public class ModItems {
     }
 
     public static void registerModItems() {
-        LOGGER.info("Registering Mod Items for " + Redos.MOD_ID);
+        LOGGER.info("Registering Mod Items for RED-OS 📦");
 
         // ADD TO CUSTOM MOD TAB
         ItemGroupEvents.modifyEntriesEvent(ModItemGroups.TECHNOLOGY_CRAFT_GROUP_KEY).register(entries -> {

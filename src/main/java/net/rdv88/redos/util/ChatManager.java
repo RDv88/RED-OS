@@ -27,20 +27,53 @@ public class ChatManager {
     
     private static class ChatData { 
         public List<ChatEntry> history = new ArrayList<>(); 
+        public List<ChatEntry> discord = new ArrayList<>();
         public List<PrivateEntry> mailbox = new ArrayList<>(); // Temporary buffer for offline users
     }
 
     private static final List<ChatEntry> GENERAL_HISTORY = new ArrayList<>();
+    private static final List<ChatEntry> DISCORD_HISTORY = new ArrayList<>();
     private static final List<PrivateEntry> OFFLINE_MAILBOX = new ArrayList<>();
     
     private static long lastChangeTime = 0;
     private static boolean isDirty = false;
     private static final AtomicBoolean IS_SAVING = new AtomicBoolean(false);
 
-    public static void addMessage(String sender, String message) {
+    public static void addMessage(String sender, String message, java.util.UUID uuid) {
         GENERAL_HISTORY.add(new ChatEntry(sender, message, System.currentTimeMillis()));
         if (GENERAL_HISTORY.size() > MAX_HISTORY) GENERAL_HISTORY.remove(0);
         isDirty = true; lastChangeTime = System.currentTimeMillis();
+        
+        // FORWARD TO DISCORD with unique player color and UUID for skin
+        int color = getStaticPlayerColor(sender);
+        DiscordBridge.sendToDiscord(sender, message, color, uuid.toString());
+    }
+
+    private static int getStaticPlayerColor(String name) {
+        int hash = name.replaceAll("§[0-9a-fklmnor]", "").hashCode();
+        float hue = (Math.abs(hash) % 360) / 360.0f;
+        return 0xFF000000 | net.minecraft.util.Mth.hsvToRgb(hue, 0.7f, 0.9f);
+    }
+
+    public static void addDiscordMessage(String sender, String message) {
+        String formattedSender = "§9[D] §f" + sender;
+        GENERAL_HISTORY.add(new ChatEntry(formattedSender, message, System.currentTimeMillis()));
+        if (GENERAL_HISTORY.size() > MAX_HISTORY) GENERAL_HISTORY.remove(0);
+        isDirty = true; lastChangeTime = System.currentTimeMillis();
+        
+        // SYNC TO ALL CLIENTS & VANILLA CHAT
+        net.minecraft.server.MinecraftServer server = net.fabricmc.loader.api.FabricLoader.getInstance().getGameInstance() instanceof net.minecraft.server.MinecraftServer s ? s : null;
+        if (server != null) {
+            net.rdv88.redos.network.ModMessages.broadcastChatSync(server);
+            
+            // Broadcast to standard Minecraft chat
+            net.minecraft.network.chat.Component vanillaMsg = net.minecraft.network.chat.Component.literal("§9[Discord] §f" + sender + "§7: " + message);
+            server.getPlayerList().broadcastSystemMessage(vanillaMsg, false);
+        }
+    }
+
+    public static List<ChatEntry> getDiscordHistory() {
+        return new ArrayList<>(DISCORD_HISTORY);
     }
 
     public static void addPrivateMessage(String from, String to, String message) {
@@ -71,7 +104,11 @@ public class ChatManager {
 
     public static void loadHistory() {
         File file = getChatFile();
-        if (!file.exists()) return;
+        if (!file.exists()) {
+            GENERAL_HISTORY.add(new ChatEntry("§7SYSTEM", "§8--- RED-OS Chat initialized ---", System.currentTimeMillis()));
+            saveHistory(false);
+            return;
+        }
         try (FileReader reader = new FileReader(file)) {
             ChatData data = GSON.fromJson(reader, ChatData.class);
             if (data != null) {
@@ -107,17 +144,19 @@ public class ChatManager {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> saveHistory(false));
 
         net.fabricmc.fabric.api.message.v1.ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
-            addMessage(sender.getName().getString(), message.signedContent());
+            addMessage(sender.getName().getString(), message.signedContent(), sender.getUUID());
         });
 
         net.fabricmc.fabric.api.message.v1.ServerMessageEvents.COMMAND_MESSAGE.register((message, sender, params) -> {
             String senderName = sender.getTextName();
             String content = message.signedContent();
+            java.util.UUID uuid = sender.getPlayer() != null ? sender.getPlayer().getUUID() : java.util.UUID.randomUUID();
+            
             if (params.targetName().isPresent()) {
                 String target = params.targetName().get().getString();
                 addPrivateMessage(senderName, target, content);
             } else {
-                addMessage(senderName, content);
+                addMessage(senderName, content, uuid);
             }
         });
     }

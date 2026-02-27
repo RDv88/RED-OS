@@ -17,6 +17,9 @@ import net.rdv88.redos.block.entity.*;
 import net.rdv88.redos.network.payload.*;
 import net.rdv88.redos.util.CameraViewHandler;
 import net.rdv88.redos.util.TechNetwork;
+import net.rdv88.redos.util.DiscordConfig;
+import net.rdv88.redos.util.DiscordBridge;
+import net.rdv88.redos.util.ChatManager;
 import net.rdv88.redos.item.HandheldDeviceItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -104,7 +107,7 @@ public class ModMessages {
     }
 
     public static void registerNetworking() {
-        LOGGER.info("RED-OS: Registering Network Channels...");
+        LOGGER.info("Registering Network Channels for RED-OS 📡");
 
         PayloadTypeRegistry.playC2S().register(RequestCameraViewPayload.ID, RequestCameraViewPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(StopCameraViewPayload.ID, StopCameraViewPayload.CODEC);
@@ -205,6 +208,7 @@ public class ModMessages {
         PayloadTypeRegistry.playS2C().register(PorterGuiResponsePayload.ID, PorterGuiResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncDroneHubTasksPayload.ID, SyncDroneHubTasksPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncChatHistoryPayload.ID, SyncChatHistoryPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncSystemInfoPayload.ID, SyncSystemInfoPayload.CODEC);
 
         // Server Side Handlers
         PayloadTypeRegistry.playC2S().register(RequestSyncDroneTasksPayload.ID, RequestSyncDroneTasksPayload.CODEC);
@@ -225,31 +229,123 @@ public class ModMessages {
 
                 switch (payload.action()) {
                     case SET_DISCORD_TOKEN -> {
-                        // Logic to save token to server config
+                        DiscordConfig config = DiscordConfig.get();
+                        config.botToken = payload.data1();
+                        DiscordConfig.save();
                         LOGGER.info("RED-OS ADMIN: Discord Token updated by {}", player.getName().getString());
                         ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aDiscord Token Secured", false));
                     }
                     case SET_DISCORD_CHANNEL -> {
+                        DiscordConfig config = DiscordConfig.get();
+                        config.channelId = payload.data1();
+                        DiscordConfig.save();
                         LOGGER.info("RED-OS ADMIN: Discord Channel ID set to {} by {}", payload.data1(), player.getName().getString());
                         ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aDiscord Channel Linked", false));
                     }
                     case KICK_PLAYER -> {
-                        String targetName = payload.data1();
-                        String reason = payload.data2();
-                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(payload.data1());
                         if (target != null) {
-                            target.connection.disconnect(net.minecraft.network.chat.Component.literal("Kicked by Admin: " + reason));
-                            LOGGER.info("RED-OS ADMIN: Player {} kicked by {}", targetName, player.getName().getString());
+                            target.connection.disconnect(net.minecraft.network.chat.Component.literal("§cKicked by Admin: §f" + payload.data2()));
                         }
                     }
+                    case BAN_PLAYER -> {
+                        String targetName = payload.data1();
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
+                        if (target != null) {
+                            com.mojang.authlib.GameProfile profile = target.getGameProfile();
+                            context.server().getPlayerList().getBans().add(new net.minecraft.server.players.UserBanListEntry(new net.minecraft.server.players.NameAndId(profile), (java.util.Date)null, "RED-OS ADMIN", (java.util.Date)null, payload.data2()));
+                            target.connection.disconnect(net.minecraft.network.chat.Component.literal("§cYou have been banned: §f" + payload.data2()));
+                        }
+                    }
+                    case KILL_PLAYER -> {
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(payload.data1());
+                        if (target != null) target.kill((ServerLevel)target.level());
+                    }
+                    case OP_PLAYER -> {
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(payload.data1());
+                        if (target != null) context.server().getPlayerList().op(new net.minecraft.server.players.NameAndId(target.getGameProfile()));
+                    }
+                    case DEOP_PLAYER -> {
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(payload.data1());
+                        if (target != null) context.server().getPlayerList().deop(new net.minecraft.server.players.NameAndId(target.getGameProfile()));
+                    }
+                    case SET_TIME -> {
+                        long time = Long.parseLong(payload.data1());
+                        for (ServerLevel level : context.server().getAllLevels()) {
+                            level.setDayTime(time);
+                        }
+                        context.server().getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal("§e[RED-OS] §7Server time adjusted by Admin."), false);
+                    }
+                    case SET_WEATHER -> {
+                        ServerLevel level = (ServerLevel)player.level();
+                        if (payload.data1().equals("CLEAR")) level.setWeatherParameters(6000, 0, false, false);
+                        else if (payload.data1().equals("RAIN")) level.setWeatherParameters(0, 6000, true, false);
+                        else if (payload.data1().equals("THUNDER")) level.setWeatherParameters(0, 6000, true, true);
+                    }
+                    case BROADCAST -> {
+                        net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket title = new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(net.minecraft.network.chat.Component.literal("§c§lSYSTEM ALERT"));
+                        net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket sub = new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(net.minecraft.network.chat.Component.literal("§f" + payload.data1()));
+                        for (ServerPlayer p : context.server().getPlayerList().getPlayers()) {
+                            p.connection.send(title);
+                            p.connection.send(sub);
+                            p.displayClientMessage(net.minecraft.network.chat.Component.literal("§c[BROADCAST] §f" + payload.data1()), false);
+                        }
+                    }
+                    case REQUEST_SYSTEM_INFO -> {
+                        // ON-DEMAND PERFORMANCE MONITORING
+                        double mspt = context.server().getAverageTickTimeNanos() / 1.0E6;
+                        double tps = Math.min(20.0, 1000.0 / mspt);
+                        int drones = net.rdv88.redos.util.LogisticsEngine.getFleet().size();
+                        int nodes = TechNetwork.SERVER_REGISTRY.size();
+                        long usedMem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024;
+                        String ram = usedMem + "MB / " + (Runtime.getRuntime().maxMemory() / 1024 / 1024) + "MB";
+                        boolean discord = net.rdv88.redos.util.DiscordBridge.isConnected();
+                        
+                        ServerPlayNetworking.send(player, new SyncSystemInfoPayload(tps, drones, nodes, ram, discord));
+                    }
                     case RELOAD_CONFIG -> {
-                        // Logic to reload server configs
+                        if (payload.data1().equals("TOGGLE_DISCORD")) {
+                            DiscordConfig config = DiscordConfig.get();
+                            config.enabled = !config.enabled;
+                            DiscordConfig.save();
+                            if (config.enabled) DiscordBridge.connect();
+                            else DiscordBridge.connect(); // Logic in Bridge will abort if disabled
+                            ServerPlayNetworking.send(player, new ActionFeedbackPayload("Discord Bridge: " + (config.enabled ? "§aENABLED" : "§cDISABLED"), false));
+                        }
                         LOGGER.info("RED-OS ADMIN: Server Configs Reloaded by {}", player.getName().getString());
                     }
-                    case RELOAD_NETWORK -> {
-                        TechNetwork.forceSyncAll(context.server());
-                        LOGGER.info("RED-OS ADMIN: Mesh Network Force-Synced by {}", player.getName().getString());
+                    case RESET_DISCORD -> {
+                        DiscordConfig config = DiscordConfig.get();
+                        config.botToken = "";
+                        config.channelId = "";
+                        config.enabled = false;
+                        DiscordConfig.save();
+                        DiscordBridge.connect(); 
+                        ServerPlayNetworking.send(player, new ActionFeedbackPayload("§cDiscord Config Wiped", false));
                     }
+                    case RELOAD_NETWORK -> TechNetwork.forceSyncAll(context.server());
+                    case TP_TO_PLAYER -> {
+                        ServerPlayer target = context.server().getPlayerList().getPlayerByName(payload.data1());
+                        if (target != null) {
+                            net.minecraft.world.level.portal.TeleportTransition transition = new net.minecraft.world.level.portal.TeleportTransition(
+                                (net.minecraft.server.level.ServerLevel)target.level(), 
+                                target.position(), 
+                                net.minecraft.world.phys.Vec3.ZERO, 
+                                target.getYRot(), 
+                                target.getXRot(), 
+                                net.minecraft.world.level.portal.TeleportTransition.DO_NOTHING
+                            );
+                            player.teleport(transition);
+                            ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aTeleported to " + target.getName().getString(), false));
+                        }
+                    }
+                    case SET_DIFFICULTY -> {
+                        net.minecraft.world.Difficulty diff = net.minecraft.world.Difficulty.byName(payload.data1().toLowerCase());
+                        context.server().setDifficulty(diff, true);
+                        ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aDifficulty Updated", false));
+                    }
+                    case SET_SPAWN -> { }
+                    case TP_SPAWN -> { }
                 }
             });
         });
@@ -267,7 +363,11 @@ public class ModMessages {
                     .map(e -> new SyncChatHistoryPayload.PrivateEntry(e.from(), e.to(), e.message(), e.timestamp()))
                     .toList();
 
-                ServerPlayNetworking.send(player, new SyncChatHistoryPayload(history, privateHistory));
+                var discordHistory = net.rdv88.redos.util.ChatManager.getDiscordHistory().stream()
+                    .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+                    .toList();
+
+                ServerPlayNetworking.send(player, new SyncChatHistoryPayload(history, discordHistory, privateHistory));
             });
         });
 
@@ -278,14 +378,14 @@ public class ModMessages {
                 String messageText = payload.message();
 
                 // 1. Add to RED-OS History (RAM + Disk)
-                net.rdv88.redos.util.ChatManager.addMessage(senderName, messageText);
+                net.rdv88.redos.util.ChatManager.addMessage(senderName, messageText, player.getUUID());
 
                 // 2. Broadcast to regular Minecraft Chat
                 net.minecraft.network.chat.Component chatComponent = net.minecraft.network.chat.Component.literal("<" + senderName + "> " + messageText);
                 context.server().getPlayerList().broadcastSystemMessage(chatComponent, false);
 
                 // 3. Sync update to all Handheld users (General + their own Private)
-                syncChatToAll(context.server());
+                broadcastChatSync(context.server());
             });
         });
 
@@ -303,7 +403,7 @@ public class ModMessages {
                 ServerPlayer target = context.server().getPlayerList().getPlayerByName(targetName);
                 if (target != null) {
                     // Recipient is ONLINE: Send directly for local storage
-                    ServerPlayNetworking.send(target, new SyncChatHistoryPayload(new ArrayList<>(), List.of(entry)));
+                    ServerPlayNetworking.send(target, new SyncChatHistoryPayload(new ArrayList<>(), new ArrayList<>(), List.of(entry)));
                     target.sendSystemMessage(net.minecraft.network.chat.Component.literal("§d" + senderName + " whispers to you: " + messageText));
                 } else {
                     // Recipient is OFFLINE: Buffer in server postbox (mailbox)
@@ -311,7 +411,7 @@ public class ModMessages {
                 }
 
                 // 2. Sync back to SENDER for their own local vault
-                ServerPlayNetworking.send(sender, new SyncChatHistoryPayload(new ArrayList<>(), List.of(entry)));
+                ServerPlayNetworking.send(sender, new SyncChatHistoryPayload(new ArrayList<>(), new ArrayList<>(), List.of(entry)));
                 sender.sendSystemMessage(net.minecraft.network.chat.Component.literal("§dYou whisper to " + targetName + ": " + messageText));
             });
         });
@@ -585,13 +685,18 @@ public class ModMessages {
         });
     }
 
-    private static void syncChatToAll(net.minecraft.server.MinecraftServer server) {
-        var genHistory = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
-            .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
-            .toList();
-
-        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, new ArrayList<>()));
+        public static void broadcastChatSync(net.minecraft.server.MinecraftServer server) {
+            var genHistory = net.rdv88.redos.util.ChatManager.getGeneralHistory().stream()
+                .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+                .toList();
+            
+            var discHistory = net.rdv88.redos.util.ChatManager.getDiscordHistory().stream()
+                .map(e -> new SyncChatHistoryPayload.ChatEntry(e.sender(), e.message(), e.timestamp()))
+                .toList();
+    
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, discHistory, new ArrayList<>()));
+            }
         }
     }
-}
+    

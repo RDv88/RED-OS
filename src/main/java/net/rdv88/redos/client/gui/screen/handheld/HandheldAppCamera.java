@@ -20,7 +20,9 @@ public class HandheldAppCamera implements HandheldApp {
     private final Font font = Minecraft.getInstance().font;
     private final List<SyncHandheldDataPayload.DeviceEntry> devices;
     
-    private static int scrollOffset = 0;
+    private static double scrollPos = 0;
+    private static double targetScroll = 0;
+    private static boolean isDragging = false;
     private static BlockPos selectedPos = null; // Changed to BlockPos for real-time
     private EditBox nameInput;
     private EditBox idInput;
@@ -59,34 +61,27 @@ public class HandheldAppCamera implements HandheldApp {
     private void populateTable(int sx, int sy, int w, WidgetAdder adder) {
         int listY = sy + 35;
         List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
-        int maxScroll = Math.max(0, filtered.size() - 6);
-        scrollOffset = Math.min(scrollOffset, maxScroll);
         
-        if (scrollOffset > 0) adder.add(new HandheldScreen.NavButton(sx + w - 20, listY - 12, 15, 10, "▲", b -> { scrollOffset--; HandheldScreen.refreshApp(); }, 0xFF444444));
-        if (filtered.size() > scrollOffset + 6) adder.add(new HandheldScreen.NavButton(sx + w - 20, listY + 110, 15, 10, "▼", b -> { scrollOffset++; HandheldScreen.refreshApp(); }, 0xFF444444));
-        
-        for (int i = 0; i < 6; i++) {
-            int index = i + scrollOffset; if (index >= filtered.size()) break;
-            SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
-            int rowY = listY + (i * 18);
+        for (int i = 0; i < filtered.size(); i++) {
+            SyncHandheldDataPayload.DeviceEntry device = filtered.get(i);
+            int rowY = (int)(listY + (i * 18) - scrollPos);
             
-            // 1. Device Row
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 68, 16, device, b -> { 
-                selectedPos = device.pos(); 
-                HandheldScreen.refreshApp(); 
-            }));
+            if (rowY > sy + 15 && rowY < sy + 152) {
+                adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 68, 16, device, sy + 30, sy + 152, b -> { 
+                    selectedPos = device.pos(); 
+                    HandheldScreen.refreshApp(); 
+                }));
 
-            // 2. NEW: "E" (Edit Config) Button
-            adder.add(new HandheldScreen.NavButton(sx + w - 62, rowY + 1, 14, 14, "E", b -> {
-                selectedPos = device.pos();
-                HandheldScreen.refreshApp();
-            }, 0xFF0055AA));
+                adder.add(new HandheldScreen.NavButton(sx + w - 62, rowY + 1, 14, 14, "E", b -> {
+                    selectedPos = device.pos();
+                    HandheldScreen.refreshApp();
+                }, 0xFF0055AA, sy + 30, sy + 152));
 
-            // 3. "VIEW" Button
-            adder.add(new HandheldScreen.NavButton(sx + w - 45, rowY + 1, 40, 14, "VIEW", b -> {
-                HandheldScreen.setSelectedDeviceName(device.name());
-                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new RequestCameraViewPayload(device.pos()));
-            }, 0xFF880000));
+                adder.add(new HandheldScreen.NavButton(sx + w - 45, rowY + 1, 38, 14, "VIEW", b -> {
+                    HandheldScreen.setSelectedDeviceName(device.name());
+                    net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new RequestCameraViewPayload(device.pos()));
+                }, 0xFF880000, sy + 30, sy + 152));
+            }
         }
     }
 
@@ -101,9 +96,27 @@ public class HandheldAppCamera implements HandheldApp {
         }
         else {
             g.drawString(font, "> CAMERAS", sx + 5, sy + 22, 0xFFAA0000, false);
-            long count = devices.stream().filter(d -> d.type().equals("CAMERA")).count();
-            String stat = String.format("%02d ACTIVE", count);
+            List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
+            String stat = String.format("%02d ACTIVE", filtered.size());
             g.drawString(font, stat, cx - (font.width(stat) / 2), sy + 22, 0xFF888888, false);
+            
+            drawScrollbar(g, sx, sy, w, h, filtered.size());
+        }
+    }
+
+    private void drawScrollbar(GuiGraphics g, int sx, int sy, int w, int h, int count) {
+        int totalH = count * 18;
+        int viewH = 117;
+        if (totalH > viewH) {
+            int barX = sx + w - 4; int barY = sy + 35; int barH = 117;
+            g.fill(barX, barY, barX + 1, barY + barH, 0x33FFFFFF); 
+            double maxScroll = Math.max(1, totalH - viewH); 
+            int handleH = Math.max(10, (int)((double)viewH / totalH * barH));
+            int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
+            int y1 = Math.clamp(handleY, barY, barY + barH - handleH);
+            int y2 = y1 + handleH;
+            if (scrollPos >= maxScroll - 0.1) y2 = barY + barH;
+            g.fill(barX - 1, y1, barX + 2, y2, 0xAAFFFFFF); 
         }
     }
 
@@ -121,6 +134,18 @@ public class HandheldAppCamera implements HandheldApp {
     }
 
     @Override public void tick() {}
+
+    @Override
+    public void preRender(int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
+        if (selectedPos != null) return;
+        List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
+        int totalH = filtered.size() * 18;
+        int viewH = 110;
+        double maxScroll = Math.max(0, totalH - viewH);
+        targetScroll = Math.clamp(targetScroll, 0, maxScroll);
+        if (Math.abs(scrollPos - targetScroll) > 0.1) scrollPos = scrollPos + (targetScroll - scrollPos) * 0.3;
+        else scrollPos = targetScroll;
+    }
     
     @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) { 
         if (selectedPos != null) {
@@ -131,11 +156,60 @@ public class HandheldAppCamera implements HandheldApp {
         return false; 
     }
     
-    @Override public boolean mouseClicked(double mouseX, double mouseY, int button) { return false; }
-    
-    @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
+    @Override public boolean mouseClicked(double mx, double my, int button, int sx, int sy, int w, int h) { 
         if (selectedPos != null) return false;
-        if (v < 0) scrollOffset++; else if (v > 0) scrollOffset = Math.max(0, scrollOffset - 1);
+        if (button == 0) {
+            int barX = sx + w - 4; int barY = sy + 35; int barH = 110;
+            List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
+            int totalH = filtered.size() * 18;
+            int viewH = 110;
+            if (totalH > viewH) {
+                double maxScroll = Math.max(1, totalH - viewH); 
+                int handleH = Math.max(10, (int)((float)viewH / totalH * barH));
+                int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
+
+                if (mx >= barX - 4 && mx <= barX + 6 && my >= handleY - 2 && my <= handleY + handleH + 2) {
+                    isDragging = true;
+                    return true;
+                }
+            }
+        }
+        return false; 
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy, int sx, int sy, int w, int h) {
+        if (isDragging) {
+            int barY = sy + 35; int barH = 110;
+            List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
+            int totalH = filtered.size() * 18;
+            int viewH = 110;
+            double maxScroll = Math.max(1, totalH - viewH);
+            int handleH = Math.max(10, (int)((float)viewH / totalH * barH));
+            
+            double clickOffset = (my - barY - (handleH / 2.0));
+            double percentage = clickOffset / (double)(barH - handleH);
+            
+            targetScroll = Math.clamp(percentage * maxScroll, 0, maxScroll);
+            HandheldScreen.refreshApp();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button, int sx, int sy, int w, int h) {
+        isDragging = false;
+        return false;
+    }
+    
+    @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v, int sx, int sy, int sw, int sh) {
+        if (selectedPos != null) return false;
+        List<SyncHandheldDataPayload.DeviceEntry> filtered = devices.stream().filter(d -> d.type().equals("CAMERA")).collect(Collectors.toList());
+        int totalH = filtered.size() * 18;
+        int viewH = 110;
+        double maxScroll = Math.max(0, totalH - viewH);
+        targetScroll = Math.clamp(targetScroll - (v * 20), 0, maxScroll);
         HandheldScreen.refreshApp(); return true;
     }
     
@@ -152,5 +226,5 @@ public class HandheldAppCamera implements HandheldApp {
         }
     }
     
-    public static void clearState() { selectedPos = null; scrollOffset = 0; }
+    public static void clearState() { selectedPos = null; scrollPos = 0; targetScroll = 0; }
 }

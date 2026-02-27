@@ -19,12 +19,20 @@ public record AdminActionPayload(ActionType action, String data1, String data2) 
         SET_DISCORD_CHANNEL,
         KICK_PLAYER,
         BAN_PLAYER,
+        KILL_PLAYER,
+        OP_PLAYER,
+        DEOP_PLAYER,
         RELOAD_CONFIG,
         RELOAD_NETWORK,
         SET_TIME,
         SET_WEATHER,
         BROADCAST,
-        REQUEST_SYSTEM_INFO
+        REQUEST_SYSTEM_INFO,
+        RESET_DISCORD,
+        TP_TO_PLAYER,
+        SET_DIFFICULTY,
+        SET_SPAWN,
+        TP_SPAWN
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AdminActionPayload> CODEC = new StreamCodec<RegistryFriendlyByteBuf, AdminActionPayload>() {

@@ -63,7 +63,7 @@ public class ModBlocks {
     }
 
     public static void registerModBlocks() {
-        LOGGER.info("Registering Mod Blocks for " + Redos.MOD_ID);
+        LOGGER.info("Registering Mod Blocks for RED-OS 🧊");
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
             entries.accept(WIRELESS_IP_CAMERA);
             entries.accept(SMART_MOTION_SENSOR);

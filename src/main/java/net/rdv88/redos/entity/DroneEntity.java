@@ -63,6 +63,25 @@ public class DroneEntity extends Mob {
     public void setCarriedItem(ItemStack s) { this.entityData.set(CARRIED_ITEM, s); }
 
     @Override
+    public void addAdditionalSaveData(net.minecraft.world.level.storage.ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        if (agentUUID != null) {
+            output.store("AgentUUID", net.minecraft.core.UUIDUtil.CODEC, agentUUID);
+        }
+    }
+
+    @Override
+    public void readAdditionalSaveData(net.minecraft.world.level.storage.ValueInput input) {
+        super.readAdditionalSaveData(input);
+        input.read("AgentUUID", net.minecraft.core.UUIDUtil.CODEC).ifPresent(uuid -> {
+            this.agentUUID = uuid;
+            if (!level().isClientSide() && !net.rdv88.redos.util.LogisticsEngine.isAgentActive(this.agentUUID)) {
+                this.discard();
+            }
+        });
+    }
+
+    @Override
     public void tick() {
         super.tick();
         if (level().isClientSide()) {

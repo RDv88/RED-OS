@@ -30,8 +30,8 @@ public class HandheldShell {
         int led = (System.currentTimeMillis() % 2000 < 1000) ? 0xFFFF0000 : 0xFF440000;
         g.fill(x + GUI_WIDTH - 12, y + 8, x + GUI_WIDTH - 8, y + 12, led);
         
-        // 6. Aligned Speaker Slots (Moved 5px left for alignment above controls)
-        drawSpeakerSlots(g, x + 13, y + 75); 
+        // 6. Aligned Speaker Slots (Moved 1px right for perfect symmetry)
+        drawSpeakerSlots(g, x + 14, y + 75); 
         drawSpeakerSlots(g, x + GUI_WIDTH - 30, y + 75); 
         
         // 7. Detailed 3D D-Pad (INTACT - MIC CHECK)
@@ -75,15 +75,15 @@ public class HandheldShell {
     
     private static void drawActionButtons(GuiGraphics g, int x, int y) {
         int bright = 0xFFCC0000;
-        drawSingleActionButton(g, x, y - 10, "Y", bright);
-        drawSingleActionButton(g, x, y + 10, "A", bright);
-        drawSingleActionButton(g, x - 10, y, "X", bright);
-        drawSingleActionButton(g, x + 10, y, "B", bright);
+        drawSingleActionButton(g, x, y - 12, "Y", bright);
+        drawSingleActionButton(g, x, y + 12, "A", bright);
+        drawSingleActionButton(g, x - 12, y, "X", bright);
+        drawSingleActionButton(g, x + 12, y, "B", bright);
     }
     
     private static void drawSingleActionButton(GuiGraphics g, int x, int y, String label, int color) {
-        g.fill(x - 4, y - 4, x + 4, y + 4, 0xFF111111); 
-        g.fill(x - 3, y - 3, x + 3, y + 3, color); 
-        g.fill(x - 1, y - 1, x + 1, y + 1, 0x44FFFFFF);
+        g.fill(x - 4, y - 4, x + 5, y + 5, 0xFF111111); 
+        g.fill(x - 3, y - 3, x + 4, y + 4, color); 
+        g.fill(x - 1, y - 1, x + 2, y + 2, 0x44FFFFFF);
     }
 }

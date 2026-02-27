@@ -26,6 +26,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
     
     private BlockPos pendingSource = null;
     private BlockPos pendingTarget = null;
+    private int pendingPrio = 2;
     private int editingTaskIndex = -1;
     private int statusTaskIndex = -1;
     
@@ -104,7 +105,8 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
                 }, 0xFF444444));
 
                 this.addRenderableWidget(new NavButton(rx + 335, rowY, 14, 11, "E", b -> {
-                    editingTaskIndex = index; pendingSource = t.src(); pendingTarget = t.dst(); viewMode = ViewMode.EDIT_OPTIONS; refreshButtons();
+                    editingTaskIndex = index; pendingSource = t.src(); pendingTarget = t.dst(); pendingPrio = t.prio();
+                    viewMode = ViewMode.EDIT_OPTIONS; refreshButtons();
                 }, 0xFF0055AA));
                 this.addRenderableWidget(new NavButton(rx + 352, rowY, 14, 11, "X", b -> {
                     ClientPlayNetworking.send(new ConfigureDroneHubPayload(this.menu.getPos(), "REMOVE_TASK", index, BlockPos.ZERO, BlockPos.ZERO, 0));
@@ -114,15 +116,25 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
             setupTagSelection(rx, rWidth);
             this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
         } else if (viewMode == ViewMode.SELECT_PRIORITY) {
-            this.addRenderableWidget(new NavButton(midX - 60, 50, 120, 20, "PRIORITY 1 (HIGH)", b -> finalizeTask(1), 0xFF00AA22));
-            this.addRenderableWidget(new NavButton(midX - 60, 75, 120, 20, "PRIORITY 2 (NORMAL)", b -> finalizeTask(2), 0xFF008888));
-            this.addRenderableWidget(new NavButton(midX - 60, 100, 120, 20, "PRIORITY 3 (LOW)", b -> finalizeTask(3), 0xFF444444));
-            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "BACK", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 60, 50, 120, 20, "PRIORITY 1 (HIGH)", b -> {
+                pendingPrio = 1; if (editingTaskIndex != -1) { viewMode = ViewMode.EDIT_OPTIONS; refreshButtons(); } else finalizeTask(1);
+            }, 0xFF00AA22));
+            this.addRenderableWidget(new NavButton(midX - 60, 75, 120, 20, "PRIORITY 2 (NORMAL)", b -> {
+                pendingPrio = 2; if (editingTaskIndex != -1) { viewMode = ViewMode.EDIT_OPTIONS; refreshButtons(); } else finalizeTask(2);
+            }, 0xFF008888));
+            this.addRenderableWidget(new NavButton(midX - 60, 100, 120, 20, "PRIORITY 3 (LOW)", b -> {
+                pendingPrio = 3; if (editingTaskIndex != -1) { viewMode = ViewMode.EDIT_OPTIONS; refreshButtons(); } else finalizeTask(3);
+            }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "BACK", b -> { viewMode = (editingTaskIndex != -1) ? ViewMode.EDIT_OPTIONS : ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF444444));
         } else if (viewMode == ViewMode.EDIT_OPTIONS) {
-            this.addRenderableWidget(new NavButton(midX - 80, 50, 160, 20, "CHANGE SOURCE TAG", b -> { viewMode = ViewMode.SELECT_SOURCE; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 80, 75, 160, 20, "CHANGE DESTINATION TAG", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 80, 100, 160, 20, "CHANGE PRIORITY", b -> { viewMode = ViewMode.SELECT_PRIORITY; refreshButtons(); }, 0xFF0055AA));
-            this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
+            this.addRenderableWidget(new NavButton(midX - 80, 45, 160, 16, "CHANGE SOURCE", b -> { viewMode = ViewMode.SELECT_SOURCE; refreshButtons(); }, 0xFF0055AA));
+            this.addRenderableWidget(new NavButton(midX - 80, 65, 160, 16, "CHANGE DESTINATION", b -> { viewMode = ViewMode.SELECT_TARGET; refreshButtons(); }, 0xFF0055AA));
+            this.addRenderableWidget(new NavButton(midX - 80, 85, 160, 16, "CHANGE PRIORITY", b -> { viewMode = ViewMode.SELECT_PRIORITY; refreshButtons(); }, 0xFF0055AA));
+            
+            this.addRenderableWidget(new NavButton(midX - 80, 155, 75, 16, "SAVE", b -> {
+                finalizeTask(pendingPrio);
+            }, 0xFF00AA22));
+            this.addRenderableWidget(new NavButton(midX + 5, 155, 75, 16, "CANCEL", b -> { resetFlow(); }, 0xFF444444));
         } else if (viewMode == ViewMode.TASK_STATUS) {
             this.addRenderableWidget(new NavButton(midX - 50, 155, 100, 16, "CLOSE", b -> { viewMode = ViewMode.MAIN; refreshButtons(); }, 0xFF444444));
         }
@@ -134,7 +146,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         resetFlow();
     }
 
-    private void resetFlow() { viewMode = ViewMode.MAIN; pendingSource = null; pendingTarget = null; editingTaskIndex = -1; refreshButtons(); }
+    private void resetFlow() { viewMode = ViewMode.MAIN; pendingSource = null; pendingTarget = null; pendingPrio = 2; editingTaskIndex = -1; refreshButtons(); }
 
     private void setupTagSelection(int rx, int rw) {
         DroneStationBlockEntity be = (DroneStationBlockEntity) minecraft.level.getBlockEntity(this.menu.getPos());
@@ -257,6 +269,16 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         } else {
             String step = switch(viewMode) { case SELECT_SOURCE -> "STEP 1: SELECT SOURCE IO TAG"; case SELECT_TARGET -> "STEP 2: SELECT DESTINATION IO TAG"; case SELECT_PRIORITY -> "STEP 3: SELECT MISSION PRIORITY"; case EDIT_OPTIONS -> "MISSION CONFIGURATION"; default -> ""; };
             g.drawCenteredString(font, "§b" + step, rx + rWidth/2, 30, 0xFFFFFFFF);
+            
+            if (viewMode == ViewMode.EDIT_OPTIONS) {
+                int ty = 120;
+                String sName = getTagShortName(pendingSource);
+                String dName = getTagShortName(pendingTarget);
+                int prio = pendingPrio;
+                String routeText = "§b" + sName + " §7-> §a" + dName + " §6(P" + prio + ")";
+                g.drawCenteredString(font, "§7CURRENT ROUTE:", rx + rWidth/2, ty, 0xFFAAAAAA);
+                g.drawCenteredString(font, routeText, rx + rWidth/2, ty + 12, 0xFFFFFFFF);
+            }
         }
         g.drawString(this.font, "RED-OS Logistic Hub", (176 - font.width("RED-OS Logistic Hub"))/2, 6, 0xFF404040, false);
     }

@@ -41,12 +41,14 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
     private String serial = UUID.randomUUID().toString();
     private final SimpleContainer droneInventory = new SimpleContainer(3);
     private boolean chunkForced = false;
+    private int launchCooldown = 0;
     
     public static class LogisticsTask {
         public BlockPos source, target;
         public int priority;
         public boolean enabled = false;
         public boolean isAssigned = false;
+        public boolean isFull = false;
         public LogisticsTask(BlockPos s, BlockPos t, int p) { this.source = s; this.target = t; this.priority = p; }
     }
     
@@ -90,6 +92,7 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
         for (LogisticsTask t : taskList) {
             Map<String, Object> m = new HashMap<>();
             m.put("source", t.source); m.put("target", t.target); m.put("priority", t.priority); m.put("enabled", t.enabled);
+            m.put("is_full", t.isFull);
             serializedTasks.add(m);
         }
         settings.put("task_list", serializedTasks);
@@ -99,12 +102,17 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
     public static void tick(Level level, BlockPos pos, BlockState state, DroneStationBlockEntity be) {
         if (level.isClientSide()) return;
+        if (be.launchCooldown > 0) be.launchCooldown--;
         if (!be.chunkForced && level instanceof ServerLevel sl) { sl.setChunkForced(new net.minecraft.world.level.ChunkPos(pos).x, new net.minecraft.world.level.ChunkPos(pos).z, true); be.chunkForced = true; }
         if (level.getGameTime() % 40 == 0) be.registerInNetwork();
     }
 
     public void onDroneReturn(UUID id, int slot) { markUpdated(); }
     public void onDroneCrash(UUID id, int slot) { markUpdated(); }
+    public void markTaskFull(int index, boolean full) { if (index >= 0 && index < taskList.size()) { taskList.get(index).isFull = full; markUpdated(); } }
+    public void resetFullTasksForTarget(BlockPos targetPos) { for (LogisticsTask t : taskList) { if (t.target.equals(targetPos)) t.isFull = false; } markUpdated(); }
+    public boolean canLaunch() { return launchCooldown <= 0; }
+    public void startLaunchCooldown() { this.launchCooldown = 50; }
     public void releaseChunk() { if (chunkForced && level instanceof ServerLevel sl) { sl.setChunkForced(new net.minecraft.world.level.ChunkPos(worldPosition).x, new net.minecraft.world.level.ChunkPos(worldPosition).z, false); chunkForced = false; } }
 
     @Override protected void saveAdditional(ValueOutput o) { super.saveAdditional(o); o.putString("name", name); o.putString("networkId", networkId); o.putString("serial", serial); NonNullList<ItemStack> s = NonNullList.withSize(3, ItemStack.EMPTY); for(int i=0; i<3; i++) s.set(i, droneInventory.getItem(i)); ContainerHelper.saveAllItems(o, s); o.putInt("task_count", taskList.size()); for (int i = 0; i < taskList.size(); i++) { LogisticsTask t = taskList.get(i); o.putLong("t" + i + "s", t.source.asLong()); o.putLong("t" + i + "t", t.target.asLong()); o.putInt("t" + i + "p", t.priority); o.putBoolean("t" + i + "e", t.enabled); } }

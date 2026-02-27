@@ -33,7 +33,7 @@ public class Redos implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        LOGGER.info("Initializing RED-OS V{}...", VERSION);
+        LOGGER.info("Initializing RED-OS V{}... 🔴", VERSION);
         net.rdv88.redos.util.UpdateChecker.checkForUpdates();
         net.rdv88.redos.util.ChatManager.registerEvents();
 
@@ -109,6 +109,14 @@ public class Redos implements ModInitializer {
             String worldName = server.getWorldData().getLevelName();
             TechNetwork.loadDatabase(worldName);
             net.rdv88.redos.util.LogisticsEngine.loadFleet(server.overworld());
+            
+            // CONFIG INITIALIZATION
+            net.rdv88.redos.util.DiscordConfig.setWorldName(worldName);
+            net.rdv88.redos.util.DiscordConfig.load();
+        });
+
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            net.rdv88.redos.util.DiscordBridge.init();
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -118,6 +126,7 @@ public class Redos implements ModInitializer {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             TechNetwork.saveDatabase(false);
+            net.rdv88.redos.util.LogisticsEngine.saveFleet(null, false);
         }));
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

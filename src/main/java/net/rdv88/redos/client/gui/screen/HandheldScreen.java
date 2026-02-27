@@ -88,8 +88,8 @@ public class HandheldScreen extends Screen {
     public static void updateNetworkIds() {
         if (currentInstance != null) {
             String raw = String.join(",", currentInstance.activeIds);
-            if (raw.isEmpty()) raw = "00000";
-            ClientPlayNetworking.send(new ConfigureHandheldPayload(raw));
+            net.rdv88.redos.item.HandheldDeviceItem.setNetworkId(currentInstance.stack, raw);
+            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(raw));
         }
     }
 
@@ -123,7 +123,7 @@ public class HandheldScreen extends Screen {
         int btnY = screenY + SCREEN_HEIGHT - 14; 
         
         if (currentAppName.equals("HOME")) {
-            this.addRenderableWidget(new NavButton(screenX + 2, btnY - 2, 20, 14, "S", b -> this.onClose(), 0xFFDDAA00));
+            this.addRenderableWidget(new NavButton(screenX + 2, btnY - 2, 20, 14, "O", b -> this.onClose(), 0xFF880000));
         } else {
             this.addRenderableWidget(new NavButton(screenX + 2, btnY - 2, 20, 14, "H", b -> requestAppSwitch("HOME"), 0xFF0055AA));
             this.addRenderableWidget(new NavButton(screenX + 24, btnY - 2, 20, 14, "<", b -> handleBackNavigation(), 0xFF444444));
@@ -144,6 +144,7 @@ public class HandheldScreen extends Screen {
             case "LOGISTICS" -> new HandheldAppLogistics(VISIBLE_DEVICES);
             case "CHAT" -> new HandheldAppChat();
             case "ADMIN" -> new HandheldAppAdmin();
+            case "DISCORD_STATUS" -> new HandheldAppDiscordStatus();
             default -> new HandheldAppHome();
         };
 
@@ -173,6 +174,7 @@ public class HandheldScreen extends Screen {
         else if (currentApp instanceof HandheldAppLogistics app) app.back();
         else if (currentApp instanceof HandheldAppChat app) app.back();
         else if (currentApp instanceof HandheldAppAdmin app) app.back();
+        else if (currentApp instanceof HandheldAppDiscordStatus app) app.back();
         else requestAppSwitch("HOME");
     }
 
@@ -287,14 +289,48 @@ public class HandheldScreen extends Screen {
     }
 
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
-        if (currentApp != null) return currentApp.mouseScrolled(mouseX, mouseY, h, v);
+        int x = this.width / 2 - GUI_WIDTH / 2;
+        int y = this.height / 2 - GUI_HEIGHT / 2;
+        int sx = x + SCREEN_X_OFFSET;
+        int sy = y + SCREEN_Y_OFFSET;
+        if (currentApp != null) return currentApp.mouseScrolled(mouseX, mouseY, h, v, sx, sy, SCREEN_WIDTH, SCREEN_HEIGHT);
         return super.mouseScrolled(mouseX, mouseY, h, v);
     }
 
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean isSecondary) {
-        if (currentApp != null && currentApp.mouseClicked(event.x(), event.y(), event.buttonInfo().button())) return true;
+        int x = this.width / 2 - GUI_WIDTH / 2;
+        int y = this.height / 2 - GUI_HEIGHT / 2;
+        int sx = x + SCREEN_X_OFFSET;
+        int sy = y + SCREEN_Y_OFFSET;
+        if (currentApp != null && currentApp.mouseClicked(event.x(), event.y(), event.buttonInfo().button(), sx, sy, SCREEN_WIDTH, SCREEN_HEIGHT)) {
+            this.setDragging(true);
+            return true;
+        }
         return super.mouseClicked(event, isSecondary);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double deltaX, double deltaY) {
+        int x = this.width / 2 - GUI_WIDTH / 2;
+        int y = this.height / 2 - GUI_HEIGHT / 2;
+        int sx = x + SCREEN_X_OFFSET;
+        int sy = y + SCREEN_Y_OFFSET;
+        if (currentApp != null && currentApp.mouseDragged(event.x(), event.y(), event.buttonInfo().button(), deltaX, deltaY, sx, sy, SCREEN_WIDTH, SCREEN_HEIGHT)) return true;
+        return super.mouseDragged(event, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        int x = this.width / 2 - GUI_WIDTH / 2;
+        int y = this.height / 2 - GUI_HEIGHT / 2;
+        int sx = x + SCREEN_X_OFFSET;
+        int sy = y + SCREEN_Y_OFFSET;
+        if (currentApp != null && currentApp.mouseReleased(event.x(), event.y(), event.buttonInfo().button(), sx, sy, SCREEN_WIDTH, SCREEN_HEIGHT)) {
+            this.setDragging(false);
+            return true;
+        }
+        return super.mouseReleased(event);
     }
 
     @Override
@@ -321,14 +357,26 @@ public class HandheldScreen extends Screen {
     @Override public void tick() { if (toastTimer > 0) toastTimer--; if (currentApp != null) currentApp.tick(); super.tick(); }
 
     public static class RowButton extends Button {
-        private final SyncHandheldDataPayload.DeviceEntry device;
-        public RowButton(int x, int y, int w, int h, SyncHandheldDataPayload.DeviceEntry d, OnPress p) { super(x, y, w, h, Component.empty(), p, DEFAULT_NARRATION); this.device = d; }
+        private final net.rdv88.redos.network.payload.SyncHandheldDataPayload.DeviceEntry device;
+        private final int minY, maxY;
+        public RowButton(int x, int y, int w, int h, net.rdv88.redos.network.payload.SyncHandheldDataPayload.DeviceEntry d, OnPress p) { 
+            this(x, y, w, h, d, 0, 9999, p); 
+        }
+        public RowButton(int x, int y, int w, int h, net.rdv88.redos.network.payload.SyncHandheldDataPayload.DeviceEntry d, int minY, int maxY, OnPress p) { 
+            super(x, y, w, h, Component.empty(), p, DEFAULT_NARRATION); 
+            this.device = d; 
+            this.minY = minY;
+            this.maxY = maxY;
+        }
         @Override public void onPress(net.minecraft.client.input.InputWithModifiers modifiers) { this.onPress.onPress(this); }
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
+            if (getY() + height < minY || getY() > maxY) return;
+            g.enableScissor(getX() - 5, minY, getX() + width + 5, maxY);
+            
             if (isHovered()) g.fill(getX(), getY(), getX() + width, getY() + height, 0x22FF0000);
             
             String displayName = formatDeviceName(device);
-            drawMarqueeText(g, displayName, getX() + 4, getY() + 4, 105, isHovered() ? 0xFFFFFFFF : 0xFFAA0000, true);
+            drawMarqueeText(g, displayName, getX() + 4, getY() + 4, 105, isHovered() ? 0xFFFFFFFF : 0xFFAAAAAA, true);
             
             if (!device.type().equals("PROFILE")) {
                 double distance = Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(device.pos()));
@@ -345,6 +393,7 @@ public class HandheldScreen extends Screen {
                 g.drawString(Minecraft.getInstance().font, "(" + device.id() + ")", getX() + width - 85, getY() + 4, 0xFF666666, false);
                 g.drawString(Minecraft.getInstance().font, device.connectionMode(), getX() + width - 40, getY() + 4, device.connectionMode().equals("Enabled") ? 0xFF00FF00 : 0xFF666666, false);
             }
+            g.disableScissor();
         }
 
         private String formatDeviceName(SyncHandheldDataPayload.DeviceEntry d) {
@@ -382,11 +431,47 @@ public class HandheldScreen extends Screen {
 
     public static class NavButton extends Button {
         private final int color;
-        public NavButton(int x, int y, int w, int h, String txt, OnPress p, int col) { super(x, y, w, h, Component.literal(txt), p, DEFAULT_NARRATION); this.color = col; }
+        private final int minY, maxY;
+        public NavButton(int x, int y, int w, int h, String txt, OnPress p, int col) { this(x, y, w, h, txt, p, col, 0, 9999); }
+        public NavButton(int x, int y, int w, int h, String txt, OnPress p, int col, int minY, int maxY) { 
+            super(x, y, w, h, Component.literal(txt), p, DEFAULT_NARRATION); 
+            this.color = col; 
+            this.minY = minY; 
+            this.maxY = maxY; 
+        }
         @Override public void onPress(net.minecraft.client.input.InputWithModifiers modifiers) { this.onPress.onPress(this); }
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
-            g.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, this.isHovered() ? color : color - 0x22000000);
-            g.drawCenteredString(Minecraft.getInstance().font, getMessage(), this.getX() + this.width / 2, this.getY() + 3, 0xFFFFFFFF);
+            if (getY() + height < minY || getY() > maxY) return;
+            g.enableScissor(getX() - 5, minY, getX() + width + 5, maxY);
+            int currentBg = this.isHovered() ? color : color - 0x22000000;
+            g.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, currentBg);
+            int cx = this.getX() + this.width / 2;
+            int cy = this.getY() + this.height / 2;
+
+            if (getMessage().getString().equals("O")) {
+                g.fill(cx - 3, cy + 2, cx + 4, cy + 3, 0xFFFFFFFF);
+                g.fill(cx - 3, cy - 2, cx - 2, cy + 2, 0xFFFFFFFF);
+                g.fill(cx + 3, cy - 2, cx + 4, cy + 2, 0xFFFFFFFF);
+                g.fill(cx, cy - 4, cx + 1, cy, 0xFFFFFFFF);
+            } else if (getMessage().getString().equals("H")) {
+                g.fill(cx, cy - 4, cx + 1, cy - 3, 0xFFFFFFFF);
+                g.fill(cx - 1, cy - 3, cx + 2, cy - 2, 0xFFFFFFFF);
+                g.fill(cx - 2, cy - 2, cx + 3, cy - 1, 0xFFFFFFFF);
+                g.fill(cx - 2, cy - 1, cx - 1, cy + 3, 0xFFFFFFFF);
+                g.fill(cx + 2, cy - 1, cx + 3, cy + 3, 0xFFFFFFFF);
+                g.fill(cx - 1, cy + 2, cx + 2, cy + 3, 0xFFFFFFFF);
+                g.fill(cx, cy + 1, cx + 1, cy + 3, currentBg);
+            } else if (getMessage().getString().equals("<")) {
+                int cx2 = this.getX() + this.width / 2;
+                int cy2 = this.getY() + this.height / 2;
+                g.fill(cx2 - 3, cy2, cx2 - 2, cy2 + 1, 0xFFFFFFFF);
+                g.fill(cx2 - 2, cy2 - 1, cx2 - 1, cy2 + 2, 0xFFFFFFFF);
+                g.fill(cx2 - 1, cy2 - 2, cx2, cy2 + 3, 0xFFFFFFFF);
+                g.fill(cx2, cy2 - 1, cx2 + 4, cy2 + 2, 0xFFFFFFFF);
+            } else {
+                g.drawCenteredString(Minecraft.getInstance().font, getMessage(), this.getX() + this.width / 2, this.getY() + 3, 0xFFFFFFFF);
+            }
+            g.disableScissor();
         }
     }
 }

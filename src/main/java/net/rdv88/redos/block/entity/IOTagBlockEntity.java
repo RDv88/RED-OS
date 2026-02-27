@@ -43,7 +43,12 @@ public class IOTagBlockEntity extends BlockEntity {
                 if (inv != null) {
                     for (int i = 0; i < inv.getContainerSize(); i++) {
                         ItemStack stack = inv.getItem(i);
-                        if (stack.isEmpty()) free += 64; else { count += stack.getCount(); free += (stack.getMaxStackSize() - stack.getCount()); }
+                        if (stack.isEmpty()) free += 64; 
+                        else { 
+                            count += stack.getCount(); 
+                            int spaceInSlot = stack.getMaxStackSize() - stack.getCount();
+                            if (spaceInSlot > 0) free += spaceInSlot;
+                        }
                     }
                 }
                 found = true;

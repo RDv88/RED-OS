@@ -17,8 +17,10 @@ public interface HandheldApp {
     void tick();
     
     boolean keyPressed(net.minecraft.client.input.KeyEvent event);
-    boolean mouseClicked(double mouseX, double mouseY, int button);
-    boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount);
+    boolean mouseClicked(double mouseX, double mouseY, int button, int sx, int sy, int w, int h);
+    default boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY, int sx, int sy, int w, int h) { return false; }
+    default boolean mouseReleased(double mouseX, double mouseY, int button, int sx, int sy, int w, int h) { return false; }
+    boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount, int sx, int sy, int w, int h);
     
     default boolean isEditMode() { return false; }
     default Optional<GuiEventListener> getInitialFocus() { return Optional.empty(); }

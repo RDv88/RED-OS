@@ -186,7 +186,7 @@ public class TechNetwork {
                 // DATABASE SCRUB: Mark dirty if nodes were potentially legacy so we resave with new defaults
                 dbDirty = true;
             }
-            LOGGER.info("RED-OS: Database loaded (Version {}, {} nodes)", 
+            LOGGER.info("Technology Database loaded for RED-OS 💾 (Version {}, {} nodes)", 
                 container != null ? container.version : 0, SERVER_REGISTRY.size());
         } catch (IOException e) {
             LOGGER.error("RED-OS: Failed to load network database", e);

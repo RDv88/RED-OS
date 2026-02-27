@@ -56,7 +56,10 @@ public class LogisticsEngine {
 
     public static void loadFleet(ServerLevel level) {
         java.io.File file = getFleetFile();
-        if (!file.exists()) return;
+        if (!file.exists()) {
+            LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 (0 agents - No database found)");
+            return;
+        }
         try (java.io.FileReader reader = new java.io.FileReader(file)) {
             FleetContainer data = GSON.fromJson(reader, FleetContainer.class);
             if (data != null && data.agents != null) {
@@ -71,13 +74,14 @@ public class LogisticsEngine {
                     va.carriedItem = itemFromBase64(ad.itemBase64, level);
                     FLEET.put(va.uuid, va);
                 }
-                LOGGER.info("RED-OS: Logistics Fleet restored ({} agents)", FLEET.size());
+                LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 ({} agents)", FLEET.size());
+            } else {
+                LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 (0 agents)");
             }
         } catch (Exception e) { LOGGER.error("RED-OS: Failed to load fleet memory", e); }
     }
 
     public static void saveFleet(ServerLevel level, boolean async) {
-        if (level == null) return;
         List<AgentData> agents = new ArrayList<>();
         for (VirtualAgent va : FLEET.values()) {
             AgentData ad = new AgentData();
@@ -87,7 +91,7 @@ public class LogisticsEngine {
             if (va.targetPos != null) { ad.dstX = va.targetPos.getX(); ad.dstY = va.targetPos.getY(); ad.dstZ = va.targetPos.getZ(); }
             ad.curX = va.currentPos.x; ad.curY = va.currentPos.y; ad.curZ = va.currentPos.z;
             ad.state = va.state.name(); ad.taskIndex = va.taskIndex;
-            ad.itemBase64 = itemToBase64(va.carriedItem, level);
+            ad.itemBase64 = (level != null) ? itemToBase64(va.carriedItem, level) : "";
             agents.add(ad);
         }
         FleetContainer container = new FleetContainer(); container.agents = agents;
@@ -130,7 +134,6 @@ public class LogisticsEngine {
 
     public static void tick(ServerLevel level) {
         if (!initialScanDone) {
-            loadFleet(level);
             if (!TechNetwork.SERVER_REGISTRY.isEmpty()) {
                 for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) {
                     if (node.type == TechNetwork.NodeType.DRONE_STATION) processPlanningForHub(level, node.pos);
@@ -193,11 +196,15 @@ public class LogisticsEngine {
                 agent.lastStatusMessage = "§aItems secured. En route to Target.";
             }
             case STEP3_GOING_TO_TARGET -> {
+                ItemStack before = agent.carriedItem.copy();
                 ItemStack left = callTagTransaction(level, agent.targetPos, false, agent.carriedItem);
                 agent.carriedItem = left;
                 p.setCarriedItem(agent.carriedItem.copy());
                 
                 if (!agent.carriedItem.isEmpty()) {
+                    if (ItemStack.matches(before, left) && level.getBlockEntity(agent.hubPos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
+                        hub.markTaskFull(agent.taskIndex, true);
+                    }
                     // DESTINATION FULL: Return to Source Protocol
                     agent.lastStatusMessage = "§eTarget Full! Returning to Source.";
                     agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE;
@@ -420,8 +427,11 @@ public class LogisticsEngine {
     public static void receiveHandshake(UUID id, Vec3 pos, ItemStack items) { VirtualAgent a = FLEET.get(id); if (a != null) { a.currentPos = pos; a.handshakeReceived = true; } }
     public static void syncPuppetData(UUID id, Vec3 pos, ItemStack items) { VirtualAgent a = FLEET.get(id); if (a != null) { a.currentPos = pos; a.carriedItem = items.copy(); } }
     public static void notifyPuppetDead(UUID id) { FLEET.remove(id); }
+    public static boolean isAgentActive(UUID uuid) { return uuid != null && FLEET.containsKey(uuid); }
 
     private static void processPlanningForHub(ServerLevel level, BlockPos pos) {
+        if (!(level.getBlockEntity(pos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) || !hub.canLaunch()) return;
+
         TechNetwork.NetworkNode node = TechNetwork.getNodeAt(pos);
         if (node != null && node.type == TechNetwork.NodeType.DRONE_STATION) {
             int dronesInHub = ((Number) node.settings.getOrDefault("drone_count", 0)).intValue();
@@ -443,6 +453,7 @@ public class LogisticsEngine {
                     if (path.isEmpty() && !pos.equals(src)) return;
                     va.waypoints = new ArrayList<>(path);
                     FLEET.put(id, va);
+                    hub.startLaunchCooldown(); // COOLDOWN STARTEN
                 }
             }
         }
@@ -452,10 +463,14 @@ public class LogisticsEngine {
         int bestIdx = -1; int lowestPrio = Integer.MAX_VALUE;
         for (int i = 0; i < tasks.size(); i++) {
             if (tasks.get(i) instanceof java.util.Map<?, ?> tMap && (Boolean) tMap.get("enabled")) {
+                if (Boolean.TRUE.equals(tMap.get("is_full"))) continue;
                 int prio = 2; Object pObj = tMap.get("priority"); if (pObj instanceof Number n) prio = n.intValue();
                 BlockPos src = parsePos(tMap.get("source")), dst = parsePos(tMap.get("target"));
                 if (src != null && dst != null && canPerformTask(level, src, dst)) {
-                    int finalI = i; if (FLEET.values().stream().noneMatch(a -> a.hubPos.equals(hubPos) && a.taskIndex == finalI && !a.uuid.equals(requestingDrone))) { if (prio < lowestPrio) { lowestPrio = prio; bestIdx = i; } }
+                    if (prio < lowestPrio) {
+                        lowestPrio = prio;
+                        bestIdx = i;
+                    }
                 }
             }
         }
@@ -498,7 +513,16 @@ public class LogisticsEngine {
     public static void onHubUpdated(ServerLevel level, BlockPos hubPos) { processPlanningForHub(level, hubPos); }
     public static void onNetworkUpdate(ServerLevel level, BlockPos tagPos) {
         String netId = TechNetwork.getNetIdFromRegistry(level, tagPos);
-        if (netId != null && !netId.isEmpty()) { for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) { if (node.type == TechNetwork.NodeType.DRONE_STATION && node.networkId.equals(netId)) processPlanningForHub(level, node.pos); } }
+        if (netId != null && !netId.isEmpty()) {
+            for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) {
+                if (node.type == TechNetwork.NodeType.DRONE_STATION && node.networkId.equals(netId)) {
+                    if (level.getBlockEntity(node.pos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
+                        hub.resetFullTasksForTarget(tagPos);
+                    }
+                    processPlanningForHub(level, node.pos);
+                }
+            }
+        }
     }
     public static BlockPos getNextWaypoint(UUID agentId) { VirtualAgent a = FLEET.get(agentId); if (a != null && !a.waypoints.isEmpty()) return a.waypoints.get(0); return null; }
     public static BlockPos getLookAheadWaypoint(UUID agentId) { VirtualAgent a = FLEET.get(agentId); if (a != null && a.waypoints.size() > 1) return a.waypoints.get(1); return null; }

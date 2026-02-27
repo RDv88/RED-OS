@@ -93,6 +93,12 @@ public class RedosClient implements ClientModInitializer {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(SyncSystemInfoPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                net.rdv88.redos.client.gui.screen.handheld.HandheldAppAdmin.handleSystemSync(payload);
+            });
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(SyncNetworkNodesPayload.ID, (payload, context) -> {
             context.client().execute(() -> { TechNetwork.clientSync(payload.nodes()); });
         });
@@ -141,7 +147,9 @@ public class RedosClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(SyncChatHistoryPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
-                HandheldAppChat.updateHistory(payload.history(), payload.privateHistory());
+                HandheldAppChat.updateHistory(payload.history(), payload.discordHistory(), payload.privateHistory());
+                // Force UI refresh
+                HandheldScreen.refreshApp();
             });
         });
 

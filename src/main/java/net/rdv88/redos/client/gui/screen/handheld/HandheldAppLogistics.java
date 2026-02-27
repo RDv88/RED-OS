@@ -27,7 +27,7 @@ public class HandheldAppLogistics implements HandheldApp {
     
     private static double scrollPos = 0;
     private static double targetScroll = 0;
-    private static int scrollOffset = 0;
+    private static boolean isDragging = false;
     private static BlockPos selectedPos = null; 
     private EditBox nameInput;
     private EditBox idInput;
@@ -77,19 +77,14 @@ public class HandheldAppLogistics implements HandheldApp {
             .filter(d -> d.type().equals(typeFilter))
             .collect(Collectors.toList());
 
-        int maxScroll = Math.max(0, filtered.size() - 6);
-        scrollOffset = Math.min(scrollOffset, maxScroll);
-
-        if (scrollOffset > 0) adder.add(new HandheldScreen.NavButton(sx + w - 20, listY - 12, 15, 10, "▲", b -> { scrollOffset--; HandheldScreen.refreshApp(); }, 0xFF444444));
-        if (filtered.size() > scrollOffset + 6) adder.add(new HandheldScreen.NavButton(sx + w - 20, listY + 110, 15, 10, "▼", b -> { scrollOffset++; HandheldScreen.refreshApp(); }, 0xFF444444));
-
-        for (int i = 0; i < 6; i++) {
-            int index = i + scrollOffset;
-            if (index >= filtered.size()) break;
-            SyncHandheldDataPayload.DeviceEntry device = filtered.get(index);
-            int rowY = listY + (i * 18);
-            adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 28, 16, device, b -> { selectedPos = device.pos(); currentView = View.CONFIG; HandheldScreen.refreshApp(); }));
-            adder.add(new HandheldScreen.NavButton(sx + w - 22, rowY + 1, 14, 14, "E", b -> { selectedPos = device.pos(); currentView = View.CONFIG; HandheldScreen.refreshApp(); }, 0xFF0055AA));
+        for (int i = 0; i < filtered.size(); i++) {
+            SyncHandheldDataPayload.DeviceEntry device = filtered.get(i);
+            int rowY = (int)(listY + (i * 18) - scrollPos);
+            
+            if (rowY > sy + 15 && rowY < sy + 152) {
+                adder.add(new HandheldScreen.RowButton(sx + 5, rowY, w - 28, 16, device, sy + 30, sy + 152, b -> { selectedPos = device.pos(); currentView = View.CONFIG; HandheldScreen.refreshApp(); }));
+                adder.add(new HandheldScreen.NavButton(sx + w - 22, rowY + 1, 14, 14, "E", b -> { selectedPos = device.pos(); currentView = View.CONFIG; HandheldScreen.refreshApp(); }, 0xFF0055AA, sy + 30, sy + 152));
+            }
         }
     }
 
@@ -106,8 +101,15 @@ public class HandheldAppLogistics implements HandheldApp {
     }
 
     @Override public void preRender(int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
-        if (Math.abs(scrollPos - targetScroll) > 0.1) { scrollPos = scrollPos + (targetScroll - scrollPos) * 0.3; }
-        else { scrollPos = targetScroll; }
+        if (currentView == View.CONFIG || currentView == View.MENU) return;
+        int itemCount = currentView == View.FLEET_STATUS ? activeMissions.size() : (int)devices.stream().filter(d -> d.type().equals(currentView == View.TAG_LIST ? "IO_TAG" : "DRONE_STATION")).count();
+        int viewH = (currentView == View.FLEET_STATUS) ? 95 : 110;
+        double maxScroll = Math.max(0, (itemCount * 18) - viewH);
+        targetScroll = Math.clamp(targetScroll, 0, maxScroll);
+        if (Math.abs(scrollPos - targetScroll) > 0.1) {
+            scrollPos = scrollPos + (targetScroll - scrollPos) * 0.3;
+            HandheldScreen.refreshApp();
+        } else scrollPos = targetScroll;
     }
 
     @Override
@@ -124,10 +126,19 @@ public class HandheldAppLogistics implements HandheldApp {
 
         switch (currentView) {
             case MENU -> g.drawCenteredString(font, "LOGISTICS", cx, sy + 18, 0xFFAA0000);
-            case TAG_LIST -> g.drawString(font, "> IO TAG SETTINGS", sx + 10, sy + 18, 0xFFAA0000, false);
-            case HUB_LIST -> g.drawString(font, "> HUB SETTINGS", sx + 10, sy + 18, 0xFFAA0000, false);
+            case TAG_LIST -> {
+                g.drawString(font, "> IO TAG SETTINGS", sx + 10, sy + 18, 0xFFAA0000, false);
+                int count = (int)devices.stream().filter(d -> d.type().equals("IO_TAG")).count();
+                drawScrollbar(g, sx, sy, w, h, count);
+            }
+            case HUB_LIST -> {
+                g.drawString(font, "> HUB SETTINGS", sx + 10, sy + 18, 0xFFAA0000, false);
+                int count = (int)devices.stream().filter(d -> d.type().equals("DRONE_STATION")).count();
+                drawScrollbar(g, sx, sy, w, h, count);
+            }
             case FLEET_STATUS -> {
                 g.drawString(font, "> LOGISTICS STATUS", sx + 10, sy + 18, 0xFFAA0000, false);
+                drawScrollbar(g, sx, sy, w, h, activeMissions.size());
                 int hY = sy + 35;
                 g.drawString(font, "§7CTR", sx + 10, hY, 0xFFFFFFFF, false);
                 g.drawString(font, "§bSRC", sx + 40, hY, 0xFFFFFFFF, false);
@@ -139,12 +150,12 @@ public class HandheldAppLogistics implements HandheldApp {
                 if (activeMissions.isEmpty()) {
                     g.drawCenteredString(font, "NO ACTIVE MISSIONS", cx, sy + 80, 0xFF444444);
                 } else {
-                    g.enableScissor(sx, sy + 46, sx + w, sy + h - 20);
+                    g.enableScissor(sx, sy + 46, sx + w, sy + 152);
                     for (int i = 0; i < activeMissions.size(); i++) {
                         SyncFleetStatusPayload.DroneTaskStatus m = activeMissions.get(i);
                         int rY = hY + 15 + (i * 18) - currentScroll;
                         
-                        if (rY < hY + 5 || rY > sy + h - 25) continue;
+                        if (rY < hY - 10 || rY > sy + 152) continue;
                         
                         // MANUAL BUTTON RENDERING
                         boolean hovered = mouseX >= sx + 10 && mouseX <= sx + 35 && mouseY >= rY && mouseY <= rY + 10;
@@ -161,7 +172,6 @@ public class HandheldAppLogistics implements HandheldApp {
                         g.drawString(font, "§7" + dN, sx + 100, rY, 0xFFFFFFFF, false);
                         g.drawString(font, "§6" + m.priority(), sx + 160, rY, 0xFFFFFFFF, false);
                         
-                        // DYNAMIC STATUS with 0.8 Scale using safe Matrix3x2f
                         String st;
                         int stColor = 0xFFFFFFFF;
                         if (m.etaTicks() > 10) {
@@ -189,7 +199,12 @@ public class HandheldAppLogistics implements HandheldApp {
             }
             case CONFIG -> {
                 SyncHandheldDataPayload.DeviceEntry s = getSelectedDevice();
-                if (s != null) g.drawCenteredString(font, "> CONFIG: " + s.name(), cx, sy + 18, 0xFFAA0000);
+                if (s != null) {
+                    g.drawCenteredString(font, "> CONFIG: " + s.name(), cx, sy + 18, 0xFFAA0000);
+                    g.drawString(font, "EDIT:", sx + 10, sy + 65, 0xFFAA0000, false);
+                    g.drawString(font, "Name:", sx + 10, sy + 85, 0xFFAAAAAA, false);
+                    g.drawString(font, "NW-ID:", sx + 10, sy + 115, 0xFFAAAAAA, false);
+                }
             }
         }
     }
@@ -213,33 +228,93 @@ public class HandheldAppLogistics implements HandheldApp {
         return false; 
     }
 
-    @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (currentView == View.FLEET_STATUS && button == 0) {
-            int hY = lastSy + 35; 
-            int currentScroll = (int)Math.round(scrollPos);
-            for (int i = 0; i < activeMissions.size(); i++) {
-                int rY = hY + 15 + (i * 18) - currentScroll;
-                if (rY < hY + 5 || rY > lastSy + 170 - 25) continue; // 170 is SCREEN_HEIGHT
-                
-                if (mouseX >= lastSx + 10 && mouseX <= lastSx + 35 && mouseY >= rY && mouseY <= rY + 10) {
-                    SyncFleetStatusPayload.DroneTaskStatus m = activeMissions.get(i);
-                    ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureDroneHubPayload(m.hubPos(), "TOGGLE_TASK", m.taskIndex(), BlockPos.ZERO, BlockPos.ZERO, 0));
-                    Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    @Override public boolean mouseClicked(double mx, double my, int button, int sx, int sy, int sw, int sh) {
+        if (currentView == View.MENU || currentView == View.CONFIG) return false;
+        if (button == 0) {
+            int itemCount = currentView == View.FLEET_STATUS ? activeMissions.size() : (int)devices.stream().filter(d -> d.type().equals(currentView == View.TAG_LIST ? "IO_TAG" : "DRONE_STATION")).count();
+            int barY = (currentView == View.FLEET_STATUS) ? sy + 45 : sy + 35;
+            int barH = (currentView == View.FLEET_STATUS) ? 95 : 110;
+            int totalH = itemCount * 18;
+            
+            if (totalH > barH) {
+                int barX = sx + sw - 4;
+                double maxScroll = Math.max(1, totalH - barH); 
+                int handleH = Math.max(10, (int)((double)barH / totalH * barH));
+                int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
+
+                if (mx >= barX - 4 && mx <= barX + 6 && my >= handleY - 2 && my <= handleY + handleH + 2) {
+                    isDragging = true;
                     return true;
+                }
+            }
+
+            if (currentView == View.FLEET_STATUS) {
+                int hY = sy + 35; 
+                int currentScroll = (int)Math.round(scrollPos);
+                for (int i = 0; i < activeMissions.size(); i++) {
+                    int rY = hY + 15 + (i * 18) - currentScroll;
+                    if (rY < hY + 10 || rY > sy + 130) continue; 
+                    if (mx >= sx + 10 && mx <= sx + 35 && my >= rY && my <= rY + 10) {
+                        SyncFleetStatusPayload.DroneTaskStatus m = activeMissions.get(i);
+                        ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureDroneHubPayload(m.hubPos(), "TOGGLE_TASK", m.taskIndex(), net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, 0));
+                        Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        return true;
+                    }
                 }
             }
         }
         return false;
     }
 
-    @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v) {
-        if (currentView == View.HUB_LIST || currentView == View.TAG_LIST || currentView == View.FLEET_STATUS) {
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy, int sx, int sy, int sw, int sh) {
+        if (isDragging) {
             int itemCount = currentView == View.FLEET_STATUS ? activeMissions.size() : (int)devices.stream().filter(d -> d.type().equals(currentView == View.TAG_LIST ? "IO_TAG" : "DRONE_STATION")).count();
-            int maxScroll = Math.max(0, (itemCount * 18) - 100);
-            targetScroll = Math.clamp(targetScroll - (v * 40), 0, maxScroll);
+            int barY = (currentView == View.FLEET_STATUS) ? sy + 45 : sy + 35;
+            int barH = (currentView == View.FLEET_STATUS) ? 95 : 110;
+            int totalH = itemCount * 18;
+            double maxScroll = Math.max(1, totalH - barH);
+            int handleH = Math.max(10, (int)((double)barH / totalH * barH));
+            
+            double clickOffset = (my - barY - (handleH / 2.0));
+            double percentage = clickOffset / (double)(barH - handleH);
+            
+            targetScroll = Math.clamp(percentage * maxScroll, 0, maxScroll);
+            HandheldScreen.refreshApp();
             return true;
         }
         return false;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button, int sx, int sy, int w, int h) {
+        isDragging = false;
+        return false;
+    }
+
+    @Override public boolean mouseScrolled(double mouseX, double mouseY, double h, double v, int sx, int sy, int sw, int sh) {
+        if (currentView == View.HUB_LIST || currentView == View.TAG_LIST || currentView == View.FLEET_STATUS) {
+            int itemCount = currentView == View.FLEET_STATUS ? activeMissions.size() : (int)devices.stream().filter(d -> d.type().equals(currentView == View.TAG_LIST ? "IO_TAG" : "DRONE_STATION")).count();
+            int viewH = (currentView == View.FLEET_STATUS) ? 95 : 110;
+            double maxScroll = Math.max(0, (itemCount * 18) - viewH);
+            targetScroll = Math.clamp(targetScroll - (v * 20), 0, maxScroll);
+            return true;
+        }
+        return false;
+    }
+
+    private void drawScrollbar(GuiGraphics g, int sx, int sy, int w, int h, int count) {
+        int totalH = count * 18;
+        int barY = (currentView == View.FLEET_STATUS) ? sy + 45 : sy + 35;
+        int barH = (currentView == View.FLEET_STATUS) ? 95 : 110;
+        if (totalH > barH) {
+            int barX = sx + w - 4;
+            g.fill(barX, barY, barX + 1, barY + barH, 0x33FFFFFF); 
+            double maxScroll = Math.max(1, totalH - barH); 
+            int handleH = Math.max(10, (int)((double)barH / totalH * barH));
+            int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
+            g.fill(barX - 1, Math.clamp(handleY, barY, barY + barH - handleH), barX + 2, handleY + handleH, 0xAAFFFFFF); 
+        }
     }
 
     public void back() {
@@ -252,12 +327,25 @@ public class HandheldAppLogistics implements HandheldApp {
     public void save() {
         SyncHandheldDataPayload.DeviceEntry s = getSelectedDevice();
         if (s != null && nameInput != null && idInput != null) {
-            String n = nameInput.getValue(), i = idInput.getValue();
-            if (i.length() == 5) { ClientPlayNetworking.send(new ConfigureDevicePayload(s.pos(), n, i)); currentView = s.type().equals("IO_TAG") ? View.TAG_LIST : View.HUB_LIST; selectedPos = null; HandheldScreen.refreshApp(); }
+            String n = nameInput.getValue().trim();
+            String i = idInput.getValue().trim();
+            if (i.length() == 5) { 
+                ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureDevicePayload(s.pos(), n, i)); 
+                HandheldScreen.showToast("§aConfiguration Saved");
+                currentView = s.type().equals("IO_TAG") ? View.TAG_LIST : View.HUB_LIST; 
+                selectedPos = null; 
+                HandheldScreen.refreshApp(); 
+            } else {
+                HandheldScreen.showToast("§cID must be 5 digits");
+            }
         }
     }
 
-    public static void clearState() { currentView = View.MENU; selectedPos = null; scrollOffset = 0; targetScroll = 0; scrollPos = 0; }
+    @Override public boolean isEditMode() { 
+        return (nameInput != null && nameInput.isFocused()) || (idInput != null && idInput.isFocused()); 
+    }
+
+    public static void clearState() { currentView = View.MENU; selectedPos = null; targetScroll = 0; scrollPos = 0; }
 
     private void drawMarqueeText(GuiGraphics g, String text, int x, int y, int width, int color, float scale) {
         int textWidth = (int)(font.width(text) * scale);

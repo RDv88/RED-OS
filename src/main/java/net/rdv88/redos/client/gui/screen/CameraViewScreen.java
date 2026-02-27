@@ -23,7 +23,9 @@ public class CameraViewScreen extends Screen {
     private EditBox chatInput;
     private boolean isChatting = false;
     private boolean isSwitching = false;
-    private int switchScrollOffset = 0;
+    private static double scrollPos = 0;
+    private static double targetScroll = 0;
+    private static boolean isDragging = false;
     private static List<SyncHandheldDataPayload.DeviceEntry> cachedDevices = new ArrayList<>();
 
     public CameraViewScreen(String cameraName) {
@@ -52,7 +54,7 @@ public class CameraViewScreen extends Screen {
         this.addRenderableWidget(new NavButton(34, btnY - 3, 45, 14, "SWITCH", b -> {
             this.isSwitching = !this.isSwitching;
             this.isChatting = false;
-            this.switchScrollOffset = 0;
+            targetScroll = 0; scrollPos = 0;
             refreshWidgets();
         }, isSwitching ? 0xFFAA0000 : 0xFF444444));
 
@@ -62,45 +64,40 @@ public class CameraViewScreen extends Screen {
         this.chatInput.setVisible(isChatting);
         this.addRenderableWidget(this.chatInput);
 
-        // 3. Scrollable Switch Menu
+        // 3. Middle Grid Switch Menu
         if (isSwitching) {
             List<SyncHandheldDataPayload.DeviceEntry> cams = cachedDevices.stream()
                 .filter(d -> d.type().equals("CAMERA"))
                 .collect(Collectors.toList());
             
-            int menuX = 34;
-            int visibleCount = 10; // INCREASED: Show up to 10 cameras
-            int menuHeight = (visibleCount * 16) + 4;
-            int menuY = h - 25 - menuHeight; // Positioned perfectly above the bar
-            
-            // Ensure menuY isn't negative on small screens
-            menuY = Math.max(25, menuY);
-            
-            // Scroll Buttons (Smaller, at the top and bottom of the menu)
-            if (switchScrollOffset > 0) {
-                this.addRenderableWidget(new NavButton(menuX + 102, menuY + 2, 15, 12, "▲", b -> {
-                    switchScrollOffset--;
-                    refreshWidgets();
-                }, 0xFF444444));
-            }
-            if (cams.size() > switchScrollOffset + visibleCount) {
-                this.addRenderableWidget(new NavButton(menuX + 102, menuY + menuHeight - 14, 15, 12, "▼", b -> {
-                    switchScrollOffset++;
-                    refreshWidgets();
-                }, 0xFF444444));
-            }
+            int btnW = 100;
+            int gap = 6;
+            int totalGridW = (2 * btnW) + gap;
+            int menuX = (w - totalGridW) / 2;
+            int menuY = (h / 2) - 50;
+            int viewH = 100;
 
-            for (int i = 0; i < visibleCount; i++) {
-                int index = i + switchScrollOffset;
-                if (index >= cams.size()) break;
+            for (int i = 0; i < cams.size(); i++) {
+                SyncHandheldDataPayload.DeviceEntry device = cams.get(i);
+                int col = i % 2;
+                int row = i / 2;
+                int px = menuX + (col * (btnW + gap));
+                int py = (int)(menuY + (row * 16) - scrollPos);
                 
-                SyncHandheldDataPayload.DeviceEntry device = cams.get(index);
-                String label = device.name();
-                this.addRenderableWidget(new NavButton(menuX + 2, menuY + 2 + (i * 16), 100, 14, label, b -> {
-                    ClientPlayNetworking.send(new RequestCameraViewPayload(device.pos()));
-                    this.isSwitching = false;
-                }, device.name().equals(currentCameraName) ? 0xFFAA0000 : 0xFF222222));
+                if (py > menuY - 14 && py < menuY + viewH) {
+                    this.addRenderableWidget(new NavButton(px, py, btnW, 14, device.name(), b -> {
+                        ClientPlayNetworking.send(new RequestCameraViewPayload(device.pos()));
+                        this.isSwitching = false;
+                        this.refreshWidgets();
+                    }, device.name().equals(currentCameraName) ? 0xFFAA0000 : 0xFF222222, menuY, menuY + viewH));
+                }
             }
+            
+            // Close button centered above the menu
+            this.addRenderableWidget(new NavButton(menuX + (totalGridW / 2) - 6, menuY - 18, 12, 12, "X", b -> {
+                this.isSwitching = false;
+                this.refreshWidgets();
+            }, 0xFFAA0000));
         }
     }
 
@@ -114,29 +111,41 @@ public class CameraViewScreen extends Screen {
         int h = this.height;
         int bSize = 8; 
 
-        // Borders and UI
+        // Borders and UI (Widescreen Effect)
         guiGraphics.fill(0, 0, w, bSize, 0xFF000000); 
         guiGraphics.fill(0, h - bSize, w, h, 0xFF000000);
-        guiGraphics.fill(0, bSize, bSize, h - bSize, 0xFF000000);
-        guiGraphics.fill(w - bSize, bSize, w, h - bSize, 0xFF000000);
-        guiGraphics.renderOutline(bSize, bSize, w - (bSize * 2), h - (bSize * 2), 0xFF440000);
+        guiGraphics.renderOutline(0, bSize, w, h - (bSize * 2), 0xFF440000);
 
-        guiGraphics.enableScissor(bSize, bSize, w - bSize, h - bSize);
-        renderFeedEffects(guiGraphics, bSize, bSize, w - (bSize * 2), h - (bSize * 2));
+        guiGraphics.enableScissor(0, bSize, w, h - bSize);
+        renderFeedEffects(guiGraphics, 0, bSize, w, h - (bSize * 2));
         guiGraphics.disableScissor();
 
-        guiGraphics.fill(bSize + 1, bSize + 1, w - bSize - 1, bSize + 13, 0xFF220000); 
-        guiGraphics.fill(bSize + 1, h - bSize - 20, w - bSize - 1, h - bSize - 1, 0xFF220000); 
+        guiGraphics.fill(0, bSize + 1, w, bSize + 13, 0xFF220000); 
+        guiGraphics.fill(0, h - bSize - 20, w, h - bSize - 1, 0xFF220000); 
 
         // RENDER SWITCH MENU WINDOW (Background and Border)
         if (isSwitching) {
-            int menuX = 34;
-            int visibleCount = 10;
-            int menuHeight = (visibleCount * 16) + 4;
-            int menuY = Math.max(25, h - 25 - menuHeight);
+            List<SyncHandheldDataPayload.DeviceEntry> cams = cachedDevices.stream()
+                .filter(d -> d.type().equals("CAMERA"))
+                .collect(Collectors.toList());
+            int totalRows = (int)Math.ceil(cams.size() / 2.0);
+            int totalH = totalRows * 16;
+            int viewH = 100;
+            double maxScroll = Math.max(0, totalH - viewH);
+            targetScroll = Math.clamp(targetScroll, 0, maxScroll);
+            if (Math.abs(scrollPos - targetScroll) > 0.1) {
+                scrollPos = scrollPos + (targetScroll - scrollPos) * 0.3;
+                refreshWidgets();
+            } else scrollPos = targetScroll;
+
+            int btnW = 100; int gap = 6; int totalGridW = (2 * btnW) + gap;
+            int menuX = (w - totalGridW) / 2;
+            int menuY = (h / 2) - 50;
             
-            guiGraphics.fill(menuX, menuY, menuX + 120, menuY + menuHeight, 0xFF110505);
-            guiGraphics.renderOutline(menuX, menuY, 120, menuHeight, 0xFFAA0000);
+            guiGraphics.fill(menuX - 5, menuY - 5, menuX + totalGridW + 12, menuY + viewH + 5, 0xEE110505);
+            guiGraphics.renderOutline(menuX - 5, menuY - 5, totalGridW + 17, viewH + 10, 0xFFAA0000);
+            
+            drawScrollbar(guiGraphics, w, h, cams.size());
         }
 
         guiGraphics.drawString(this.font, "RED-OS", bSize + 4, bSize + 3, 0xFFFF0000, false);
@@ -158,20 +167,94 @@ public class CameraViewScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, delta);
     }
 
+    private void drawScrollbar(GuiGraphics g, int w, int h, int count) {
+        int totalRows = (int)Math.ceil(count / 2.0);
+        int totalH = totalRows * 16;
+        int viewH = 100;
+        int btnW = 100; int gap = 6; int totalGridW = (2 * btnW) + gap;
+        int menuX = (w - totalGridW) / 2;
+        int menuY = (h / 2) - 50;
+        int barX = menuX + totalGridW + 8;
+        
+        if (totalH > viewH) {
+            g.fill(barX, menuY, barX + 1, menuY + viewH, 0x33FFFFFF); 
+            double maxScroll = Math.max(1, totalH - viewH); 
+            int handleH = Math.max(10, (int)((double)viewH / totalH * viewH));
+            int handleY = (int)(menuY + (scrollPos / maxScroll) * (viewH - handleH));
+            int y1 = Math.clamp(handleY, menuY, menuY + viewH - handleH);
+            int y2 = y1 + handleH;
+            if (scrollPos >= maxScroll - 0.1) y2 = menuY + viewH;
+            g.fill(barX - 1, y1, barX + 2, y2, 0xAAFFFFFF); 
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean isSecondary) {
+        if (isSwitching && event.buttonInfo().button() == 0) {
+            List<SyncHandheldDataPayload.DeviceEntry> cams = cachedDevices.stream()
+                    .filter(d -> d.type().equals("CAMERA"))
+                    .collect(Collectors.toList());
+            int totalRows = (int)Math.ceil(cams.size() / 2.0);
+            int totalH = totalRows * 16;
+            int viewH = 100;
+            int btnW = 100; int gap = 6; int totalGridW = (2 * btnW) + gap;
+            int menuX = (this.width - totalGridW) / 2;
+            int menuY = (this.height / 2) - 50;
+            int barX = menuX + totalGridW + 8;
+
+            if (totalH > viewH) {
+                double maxScroll = Math.max(1, totalH - viewH); 
+                int handleH = Math.max(10, (int)((double)viewH / totalH * viewH));
+                int handleY = (int)(menuY + (scrollPos / maxScroll) * (viewH - handleH));
+
+                if (event.x() >= barX - 4 && event.x() <= barX + 6 && event.y() >= handleY - 2 && event.y() <= handleY + handleH + 2) {
+                    isDragging = true;
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(event, isSecondary);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double deltaX, double deltaY) {
+        if (isDragging) {
+            List<SyncHandheldDataPayload.DeviceEntry> cams = cachedDevices.stream()
+                    .filter(d -> d.type().equals("CAMERA"))
+                    .collect(Collectors.toList());
+            int totalRows = (int)Math.ceil(cams.size() / 2.0);
+            int totalH = totalRows * 16;
+            int viewH = 100;
+            int menuY = (this.height / 2) - 50;
+            double maxScroll = Math.max(1, totalH - viewH);
+            int handleH = Math.max(10, (int)((double)viewH / totalH * viewH));
+            
+            double clickOffset = (event.y() - menuY - (handleH / 2.0));
+            double percentage = clickOffset / (double)(viewH - handleH);
+            
+            targetScroll = Math.clamp(percentage * maxScroll, 0, maxScroll);
+            return true;
+        }
+        return super.mouseDragged(event, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        isDragging = false;
+        return super.mouseReleased(event);
+    }
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (isSwitching) {
-            if (verticalAmount < 0) switchScrollOffset++;
-            else if (verticalAmount > 0) switchScrollOffset = Math.max(0, switchScrollOffset - 1);
-            
-            // Limit scroll offset
             List<SyncHandheldDataPayload.DeviceEntry> cams = cachedDevices.stream()
                 .filter(d -> d.type().equals("CAMERA"))
                 .collect(Collectors.toList());
-            int maxScroll = Math.max(0, cams.size() - 10);
-            switchScrollOffset = Math.min(switchScrollOffset, maxScroll);
-            
-            refreshWidgets();
+            int totalRows = (int)Math.ceil(cams.size() / 2.0);
+            int totalH = totalRows * 16;
+            int viewH = 100;
+            double maxScroll = Math.max(0, totalH - viewH);
+            targetScroll = Math.clamp(targetScroll - (verticalAmount * 16), 0, maxScroll);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -220,14 +303,23 @@ public class CameraViewScreen extends Screen {
 
     private class NavButton extends Button {
         private final int color;
+        private final int minY, maxY;
         public NavButton(int x, int y, int w, int h, String txt, OnPress p, int col) {
+            this(x, y, w, h, txt, p, col, 0, 9999);
+        }
+        public NavButton(int x, int y, int w, int h, String txt, OnPress p, int col, int minY, int maxY) {
             super(x, y, w, h, Component.literal(txt), p, DEFAULT_NARRATION);
             this.color = col;
+            this.minY = minY;
+            this.maxY = maxY;
         }
         @Override public void onPress(net.minecraft.client.input.InputWithModifiers modifiers) { this.onPress.onPress(this); }
         @Override protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float delta) {
+            if (this.getY() + this.height < minY || this.getY() > maxY) return;
+            g.enableScissor(this.getX() - 5, minY, this.getX() + this.width + 5, maxY);
             g.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, this.isHovered() ? color : color - 0x22000000);
             g.drawCenteredString(font, this.getMessage(), this.getX() + this.width / 2, this.getY() + 3, 0xFFFFFFFF);
+            g.disableScissor();
         }
     }
 }
