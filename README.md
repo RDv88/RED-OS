@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/Version-BETA-red)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
 
-![Handheld GUI](https://cdn.modrinth.com/data/cached_images/60e8cea3586d85e238bc48bb75c99a813f024e4b.png)
+![handheld gui](https://cdn.modrinth.com/data/cached_images/04af35f652befeedbbb529fe38d9ee094bcfc0ce.png)
 
 ## 🔴 RED-OS: Advanced Technology Ecosystem (BETA)
 
