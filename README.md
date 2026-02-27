@@ -3,7 +3,38 @@
 ![Version](https://img.shields.io/badge/Version-BETA-red)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
 
-🔴 RED-OS is a comprehensive technological suite for Minecraft, designed to automate logistics, enhance security, and master spatial energy. No longer just a collection of machines, it is a unified operating system for your world.
+![Handheld GUI](https://cdn.modrinth.com/data/cached_images/60e8cea3586d85e238bc48bb75c99a813f024e4b.png)
+
+## 🔴 RED-OS: Advanced Technology Ecosystem (BETA)
+
+RED-OS is a comprehensive technological suite for Minecraft, designed to automate logistics, enhance security, and master spatial energy. No longer just a collection of machines, it is a unified operating system for your world.
+
+
+## 🚀 Key Features
+
+**Centralized Handheld OS**:
+Take absolute control with the Handheld Device. This powerful multi-app tablet serves as the primary interface for your infrastructure, allowing you to
+configure hardware, monitor fleet status, and manage security protocols from the palm of your hand.
+
+**Global Communication Suite**:
+The ultimate command center for player interaction. Features a high-performance Global Chat, an encrypted Private Messenger Vault for persistent local history,
+and a seamless Discord Bridge to connect your in-game world with your external community in real-time.
+
+**Autonomous Drone Logistics**:
+Deploy intelligent Drone Units managed by a centralized Master Controller. These autonomous agents navigate complex Mesh Networks to transport resources with
+high efficiency, featuring built-in survival protocols and intelligent back-pressure detection for full containers.
+
+**Surveillance & Advanced Security**:
+Maintain total situational awareness with high-definition Wireless IP Cameras and Smart Sensors. Monitor your facility through real-time video feeds
+and configure automated alerts for players, entities, or specific network events.
+
+**Quantum Teleportation Infrastructure**:
+Master the Quantum Porter system for instantaneous long-range logistics and personnel travel. Utilizing advanced spatial mapping, the Porter provides secure,
+zero-latency movement across your entire RED-OS network.
+
+**High-Energy Defense**:
+Protect your assets with the Plasma Pulse Disintegrator weapon.
+
 
 ## 🛰 How it Works: Discovery & Progression
 
@@ -14,27 +45,25 @@ In Survival mode, RED-OS utilizes an advancement-based unlock system. Hardware t
 
 > **Note:** For architects, all features are immediately available in **Creative Mode** by searching for **RED-OS**.
 
-## 🚀 Key Features
-*   **Autonomous Drone Logistics:** Deploy intelligent Drone Units to move items through complex Mesh networks.
-*   **Quantum Teleportation:** Master the Quantum Porter system for instant long-range logistics and travel.
-*   **Centralized Handheld OS:** Control your entire network from a single, high-tech Handheld Device.
-*   **Surveillance & Security:** Monitor your base with Wireless IP Cameras and Smart Motion Sensors.
-*   **Defense Systems:** Protect your infrastructure with the Plasma Pulse Disintegrator.
+
 
 ## 🛠 Requirements
-*   **Minecraft:** 1.21.11
-*   **Fabric Loader:** 0.18.1 or higher
-*   **Fabric API:** 0.141.2+1.21.11
+Minecraft: 1.21.11
+Fabric Loader: 0.18.1 or higher
+Fabric API: 0.141.2+1.21.11
+
+
 
 ## 📦 Installation
-1.  Download the latest `.jar` from the [Releases](https://github.com/RDv88/RED-OS/releases) page.
-2.  Place the file in your Minecraft `mods` folder.
-3.  Ensure you have the correct version of Fabric API installed.
+Download the latest .jar from the Releases page.
+Place the file in your Minecraft mods folder.
+Ensure you have the correct version of Fabric API installed.
+
+
 
 ## 🐛 Bug Reporting & Feedback
-We are currently in **BETA**. Stability is our primary goal for the v1.0 release. If you encounter any issues, please report them via the **[GitHub Issues](https://github.com/RDv88/RED-OS/issues)** page.
+We are currently in BETA. Stability is our primary goal for the v1.0 release. If you encounter any issues, please report them via the GitHub Issues page.
 
-*Your feedback helps make RED-OS better for everyone!*
-
+Your feedback helps make RED-OS better for everyone!
 ---
 *Developed by RDv88*
