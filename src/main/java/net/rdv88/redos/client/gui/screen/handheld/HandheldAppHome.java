@@ -30,7 +30,6 @@ public class HandheldAppHome implements HandheldApp {
         int startX = screenCX - (rowWidth / 2) - 2; 
         
         apps.clear();
-        // Start py at 20 instead of 25 since we raised the scissor boundary
         apps.add(new AppButton(startX, 20, size, size, new ItemStack(Items.WRITABLE_BOOK), "RED-OS Chat", "CHAT", sx, sy, w, h));
         apps.add(new AppButton(startX + size + gap, 20, size, size, new ItemStack(Items.SPYGLASS), "Camera", "CAMERA", sx, sy, w, h));
         apps.add(new AppButton(startX + (size + gap) * 2, 20, size, size, new ItemStack(Items.REDSTONE_TORCH), "Triggers", "TRIGGERS", sx, sy, w, h));
@@ -53,8 +52,17 @@ public class HandheldAppHome implements HandheldApp {
         for (AppButton app : apps) adder.add(app);
     }
 
+    private double getMaxScroll() {
+        if (apps.isEmpty()) return 0;
+        int lastY = apps.get(apps.size() - 1).relY + 38 + 15; // Bottom of last button + label margin
+        return Math.max(0, lastY - 139); // 139 is our view height (152 - 13)
+    }
+
     @Override
     public void preRender(int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
+        double maxScroll = getMaxScroll();
+        targetScroll = Math.clamp(targetScroll, 0, maxScroll);
+
         if (Math.abs(scrollPos - targetScroll) > 0.1) {
             scrollPos = scrollPos + (targetScroll - scrollPos) * 0.3;
         } else {
@@ -62,7 +70,7 @@ public class HandheldAppHome implements HandheldApp {
         }
 
         int currentScroll = (int)Math.round(scrollPos);
-        int minY = sy + 15;
+        int minY = sy + 13;
         int maxY = sy + 152;
 
         for (AppButton app : apps) {
@@ -73,14 +81,14 @@ public class HandheldAppHome implements HandheldApp {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
-        // MENU Text removed for more space
+        double maxScroll = getMaxScroll();
+        if (maxScroll <= 0) return;
 
         int barX = sx + w - 4;
         int barY = sy + 13;
         int barH = 139;
         g.fill(barX, barY, barX + 1, barY + barH, 0x33FFFFFF); 
         
-        double maxScroll = 160; 
         int handleH = 25;
         int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
         
@@ -96,12 +104,12 @@ public class HandheldAppHome implements HandheldApp {
     
     @Override 
     public boolean mouseClicked(double mouseX, double mouseY, int button, int sx, int sy, int w, int h) { 
-        if (button == 0) {
+        double maxScroll = getMaxScroll();
+        if (button == 0 && maxScroll > 0) {
             int barX = sx + w - 4;
-            int barY = sy + 15;
-            int barH = 137;
+            int barY = sy + 13;
+            int barH = 139;
             int handleH = 25;
-            double maxScroll = 160;
             int handleY = (int)(barY + (scrollPos / maxScroll) * (barH - handleH));
 
             if (mouseX >= barX - 4 && mouseX <= barX + 6 && mouseY >= handleY - 2 && mouseY <= handleY + handleH + 2) {
@@ -116,11 +124,11 @@ public class HandheldAppHome implements HandheldApp {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY, int sx, int sy, int w, int h) {
-        if (isDragging) {
-            int barY = sy + 15;
-            int barH = 137;
+        double maxScroll = getMaxScroll();
+        if (isDragging && maxScroll > 0) {
+            int barY = sy + 13;
+            int barH = 139;
             int handleH = 25;
-            double maxScroll = 160;
             
             double clickOffset = (mouseY - barY - (handleH / 2.0));
             double percentage = Math.clamp(clickOffset / (double)(barH - handleH), 0.0, 1.0);
@@ -139,7 +147,9 @@ public class HandheldAppHome implements HandheldApp {
     }
     
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount, int sx, int sy, int w, int h) { 
-        targetScroll = Math.clamp(targetScroll - (verticalAmount * 40), 0, 160);
+        double maxScroll = getMaxScroll();
+        if (maxScroll <= 0) return false;
+        targetScroll = Math.clamp(targetScroll - (verticalAmount * 40), 0, maxScroll);
         return true; 
     }
 
@@ -169,7 +179,6 @@ public class HandheldAppHome implements HandheldApp {
             g.fill(getX(), getY(), getX() + width, getY() + height, color);
             g.renderOutline(getX(), getY(), width, height, isHovered() ? 0xFFFF0000 : 0xFF660000);
             
-            // Adjust item rendering for larger 42x42 button
             g.renderItem(icon, getX() + (width - 16) / 2, getY() + (height - 16) / 2);
             
             float scale = 0.85f;

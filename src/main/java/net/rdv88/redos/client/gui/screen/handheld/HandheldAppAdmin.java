@@ -251,6 +251,12 @@ public class HandheldAppAdmin implements HandheldApp {
         nodeCount = p.meshNodes();
         ramInfo = p.serverRam();
         
+        net.rdv88.redos.util.PermissionCache.update(
+            net.rdv88.redos.util.PermissionCache.hasMainAccess(),
+            net.rdv88.redos.util.PermissionCache.hasHighTechAccess(),
+            p.isAdmin()
+        );
+
         if (discordOnline != p.discordOnline()) {
             discordOnline = p.discordOnline();
             if (currentView == View.DISCORD) HandheldScreen.refreshApp();

@@ -400,14 +400,7 @@ public class HandheldAppChat implements HandheldApp {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button, int sx, int sy, int w, int h) {
-        // 1. Focus input if clicked
-        if (chatInput != null && chatInput.isVisible()) {
-            chatInput.setFocused(mx >= chatInput.getX() && mx < chatInput.getX() + chatInput.getWidth() && 
-                               my >= chatInput.getY() && my < chatInput.getY() + chatInput.getHeight());
-            if (chatInput.isFocused()) return true;
-        }
-
-        // 2. Precise Scroll Handle Grab
+        // Precise Scroll Handle Grab
         int barX = sx + w - 4;
         int barY = sy + 45;
         int barH = h - 90;

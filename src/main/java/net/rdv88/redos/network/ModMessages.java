@@ -301,7 +301,8 @@ public class ModMessages {
                         String ram = usedMem + "MB / " + (Runtime.getRuntime().maxMemory() / 1024 / 1024) + "MB";
                         boolean discord = net.rdv88.redos.util.DiscordBridge.isConnected();
                         
-                        ServerPlayNetworking.send(player, new SyncSystemInfoPayload(tps, drones, nodes, ram, discord));
+                        boolean isAdmin = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(new net.minecraft.server.players.NameAndId(player.getGameProfile()));
+                        ServerPlayNetworking.send(player, new SyncSystemInfoPayload(tps, drones, nodes, ram, discord, isAdmin));
                     }
                     case RELOAD_CONFIG -> {
                         if (payload.data1().equals("TOGGLE_DISCORD")) {
