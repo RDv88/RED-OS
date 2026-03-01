@@ -58,6 +58,7 @@ public class HandheldAppChat implements HandheldApp {
     }
 
     private static EditBox chatInput;
+    private static boolean wasInputFocused = true;
 
     public static void updateHistory(List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> history, List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.ChatEntry> dHistory, List<net.rdv88.redos.network.payload.SyncChatHistoryPayload.PrivateEntry> pHistory) {
         if (!history.isEmpty()) {
@@ -179,10 +180,12 @@ public class HandheldAppChat implements HandheldApp {
         }
         chatInput.setVisible(showInput);
         adder.add(chatInput);
+        if (showInput && wasInputFocused) chatInput.setFocused(true);
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
+        if (chatInput != null && chatInput.isVisible()) wasInputFocused = chatInput.isFocused();
         int onlineCount = Minecraft.getInstance().getConnection().getOnlinePlayers().size();
         
         if (chatInput != null && chatInput.isVisible()) {
@@ -386,6 +389,8 @@ public class HandheldAppChat implements HandheldApp {
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new net.rdv88.redos.network.payload.SendChatMessagePayload(msg));
             }
             chatInput.setValue("");
+            wasInputFocused = true;
+            chatInput.setFocused(true);
         }
     }
 

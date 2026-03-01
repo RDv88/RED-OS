@@ -83,7 +83,7 @@ public class HandheldAppTransmittor implements HandheldApp {
     }
 
     @Override public boolean isEditMode() { 
-        return (nameInput != null && nameInput.isFocused()) || (idInput != null && idInput.isFocused()); 
+        return selectedPos != null; 
     }
 
     @Override

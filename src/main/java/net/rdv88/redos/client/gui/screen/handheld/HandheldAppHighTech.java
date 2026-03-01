@@ -80,7 +80,7 @@ public class HandheldAppHighTech implements HandheldApp {
     }
 
     @Override public boolean isEditMode() { 
-        return PermissionCache.hasHighTechAccess() && ((nameInput != null && nameInput.isFocused()) || (idInput != null && idInput.isFocused())); 
+        return PermissionCache.hasHighTechAccess() && selectedPos != null; 
     }
 
     @Override

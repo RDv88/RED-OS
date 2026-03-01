@@ -1,9 +1,13 @@
 package net.rdv88.redos.util;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -20,69 +24,47 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class LogisticsEngine {
     private static final Logger LOGGER = LoggerFactory.getLogger("redos-logistics");
     private static final ConcurrentHashMap<UUID, VirtualAgent> FLEET = new ConcurrentHashMap<>();
     private static final com.google.gson.Gson GSON = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
-    private static final long SAVE_DELAY_MS = 150000;
+    private static final long SAVE_DELAY_MS = 60000;
     private static long lastSaveTime = 0;
     private static boolean initialScanDone = false;
 
     public enum State { STEP1_INITIALIZING, STEP2_GOING_TO_SOURCE, STEP3_GOING_TO_TARGET, STEP4_RETURNING_HOME, STEP5_TERMINATING, STEP_RETURNING_ITEMS_TO_SOURCE }
 
-    public static class VirtualAgent {
-        public final UUID uuid;
-        public final BlockPos hubPos;
-        public final String networkId;
-        public final int homeSlot;
-        public BlockPos sourcePos, targetPos;
-        public List<BlockPos> waypoints = new ArrayList<>();
-        public Vec3 currentPos;
-        public State state;
-        public ItemStack carriedItem = ItemStack.EMPTY;
-        public int taskIndex = -1;
-        public String lastStatusMessage = "Initializing...";
-        public transient UUID puppetUuid = null;
-        public transient boolean handshakeReceived = false;
-        public transient int ghostTicksRemaining = 0;
-
-        public VirtualAgent(UUID uuid, BlockPos hub, String netId, int slot) {
-            this.uuid = uuid; this.hubPos = hub; this.networkId = netId; this.homeSlot = slot;
-            this.state = State.STEP1_INITIALIZING;
-            this.currentPos = Vec3.atCenterOf(hub).add(0, 0.5, 0);
-        }
-    }
-
-    public static void loadFleet(ServerLevel level) {
+    public static void loadFleet(MinecraftServer server) {
+        if (server == null) return;
         java.io.File file = getFleetFile();
-        if (!file.exists()) {
-            LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 (0 agents - No database found)");
-            return;
-        }
+        if (!file.exists()) return;
         try (java.io.FileReader reader = new java.io.FileReader(file)) {
             FleetContainer data = GSON.fromJson(reader, FleetContainer.class);
             if (data != null && data.agents != null) {
                 FLEET.clear();
+                HolderLookup.Provider registries = server.registryAccess();
                 for (AgentData ad : data.agents) {
                     VirtualAgent va = new VirtualAgent(UUID.fromString(ad.uuid), new BlockPos(ad.hubX, ad.hubY, ad.hubZ), ad.networkId, ad.homeSlot);
-                    va.sourcePos = new BlockPos(ad.srcX, ad.srcY, ad.srcZ);
-                    va.targetPos = new BlockPos(ad.dstX, ad.dstY, ad.dstZ);
+                    if (ad.srcX != 0 || ad.srcY != 0) va.sourcePos = new BlockPos(ad.srcX, ad.srcY, ad.srcZ);
+                    if (ad.dstX != 0 || ad.dstY != 0) va.targetPos = new BlockPos(ad.dstX, ad.dstY, ad.dstZ);
                     va.currentPos = new Vec3(ad.curX, ad.curY, ad.curZ);
                     va.state = State.valueOf(ad.state);
                     va.taskIndex = ad.taskIndex;
-                    va.carriedItem = itemFromBase64(ad.itemBase64, level);
+                    va.carriedItem = itemFromBase64(ad.itemBase64, registries);
+                    if (ad.waypoints != null) va.waypoints = ad.waypoints.stream().map(BlockPos::of).collect(Collectors.toCollection(ArrayList::new));
                     FLEET.put(va.uuid, va);
                 }
-                LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 ({} agents)", FLEET.size());
-            } else {
-                LOGGER.info("Loading Logistics Fleet for RED-OS 🛸 (0 agents)");
+                LOGGER.info("RED-OS: Logistics Fleet restored ({} agents)", FLEET.size());
             }
         } catch (Exception e) { LOGGER.error("RED-OS: Failed to load fleet memory", e); }
     }
 
-    public static void saveFleet(ServerLevel level, boolean async) {
+    public static void saveFleet(MinecraftServer server, boolean async) {
+        if (server == null) return;
         List<AgentData> agents = new ArrayList<>();
+        HolderLookup.Provider registries = server.registryAccess();
         for (VirtualAgent va : FLEET.values()) {
             AgentData ad = new AgentData();
             ad.uuid = va.uuid.toString(); ad.networkId = va.networkId; ad.homeSlot = va.homeSlot;
@@ -91,61 +73,63 @@ public class LogisticsEngine {
             if (va.targetPos != null) { ad.dstX = va.targetPos.getX(); ad.dstY = va.targetPos.getY(); ad.dstZ = va.targetPos.getZ(); }
             ad.curX = va.currentPos.x; ad.curY = va.currentPos.y; ad.curZ = va.currentPos.z;
             ad.state = va.state.name(); ad.taskIndex = va.taskIndex;
-            ad.itemBase64 = (level != null) ? itemToBase64(va.carriedItem, level) : "";
+            ad.itemBase64 = itemToBase64(va.carriedItem, registries);
+            if (va.waypoints != null) ad.waypoints = va.waypoints.stream().map(BlockPos::asLong).collect(Collectors.toList());
             agents.add(ad);
         }
         FleetContainer container = new FleetContainer(); container.agents = agents;
         Runnable task = () -> {
-            try (java.io.FileWriter writer = new java.io.FileWriter(getFleetFile())) {
-                GSON.toJson(container, writer);
-            } catch (Exception e) { LOGGER.error("RED-OS: Failed to save fleet memory", e); }
+            try (java.io.FileWriter writer = new java.io.FileWriter(getFleetFile())) { GSON.toJson(container, writer); }
+            catch (Exception e) { LOGGER.error("RED-OS: Failed to save fleet memory", e); }
         };
         if (async) CompletableFuture.runAsync(task); else task.run();
     }
 
     private static java.io.File getFleetFile() {
         java.nio.file.Path configDir = net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("redos");
+        if (!configDir.toFile().exists()) configDir.toFile().mkdirs();
         return new java.io.File(configDir.toFile(), "logistics_fleet.json");
     }
 
-    private static String itemToBase64(ItemStack stack, ServerLevel level) {
+    private static String itemToBase64(ItemStack stack, HolderLookup.Provider registries) {
         if (stack.isEmpty()) return "";
         try {
-            var ops = level.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
-            net.minecraft.nbt.Tag nbt = ItemStack.CODEC.encodeStart(ops, stack).getOrThrow();
+            var ops = registries.createSerializationContext(NbtOps.INSTANCE);
+            Tag nbt = ItemStack.CODEC.encodeStart(ops, stack).getOrThrow();
             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
             NbtIo.writeCompressed((CompoundTag)nbt, baos);
             return Base64.getEncoder().encodeToString(baos.toByteArray());
         } catch (Exception e) { return ""; }
     }
 
-    private static ItemStack itemFromBase64(String base64, ServerLevel level) {
+    private static ItemStack itemFromBase64(String base64, HolderLookup.Provider registries) {
         if (base64 == null || base64.isEmpty()) return ItemStack.EMPTY;
         try {
             byte[] bytes = Base64.getDecoder().decode(base64);
             CompoundTag nbt = NbtIo.readCompressed(new java.io.ByteArrayInputStream(bytes), NbtAccounter.unlimitedHeap());
-            var ops = level.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+            var ops = registries.createSerializationContext(NbtOps.INSTANCE);
             return ItemStack.CODEC.parse(ops, nbt).getOrThrow();
         } catch (Exception e) { return ItemStack.EMPTY; }
     }
 
     private static class FleetContainer { public List<AgentData> agents; }
-    private static class AgentData { public String uuid, networkId, state, itemBase64; public int hubX, hubY, hubZ, srcX, srcY, srcZ, dstX, dstY, dstZ; public double curX, curY, curZ; public int homeSlot, taskIndex; }
+    private static class AgentData { 
+        public String uuid, networkId, state, itemBase64; 
+        public int hubX, hubY, hubZ, srcX, srcY, srcZ, dstX, dstY, dstZ; 
+        public double curX, curY, curZ; 
+        public int homeSlot, taskIndex;
+        public List<Long> waypoints;
+    }
 
     public static void tick(ServerLevel level) {
         if (!initialScanDone) {
-            if (!TechNetwork.SERVER_REGISTRY.isEmpty()) {
-                for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) {
-                    if (node.type == TechNetwork.NodeType.DRONE_STATION) processPlanningForHub(level, node.pos);
-                }
-            }
+            TechNetwork.SERVER_REGISTRY.values().stream().filter(n -> n.type == TechNetwork.NodeType.DRONE_STATION).forEach(n -> processPlanningForHub(level, n.pos));
             initialScanDone = true;
         }
-        if (System.currentTimeMillis() - lastSaveTime > SAVE_DELAY_MS) { saveFleet(level, true); lastSaveTime = System.currentTimeMillis(); }
+        if (System.currentTimeMillis() - lastSaveTime > SAVE_DELAY_MS) { saveFleet(level.getServer(), true); lastSaveTime = System.currentTimeMillis(); }
         for (VirtualAgent agent : FLEET.values()) {
-            boolean playerNearby = level.players().stream().anyMatch(p -> p.position().distanceToSqr(agent.currentPos) < 4096);
-            if (playerNearby) processTacticalMode(level, agent);
-            else processGhostMode(level, agent);
+            boolean playerNearby = level.players().stream().anyMatch(p -> p.position().distanceToSqr(agent.currentPos) < 6400);
+            if (playerNearby) processTacticalMode(level, agent); else processGhostMode(level, agent);
         }
     }
 
@@ -154,229 +138,84 @@ public class LogisticsEngine {
         DroneEntity p = getPuppet(level, agent);
         if (p == null) return;
         agent.currentPos = p.position();
-        p.setCarriedItem(agent.carriedItem.copy());
+        if (!ItemStack.matches(p.getCarriedItem(), agent.carriedItem)) p.setCarriedItem(agent.carriedItem.copy());
+        if (agent.handshakeReceived || agent.state == State.STEP1_INITIALIZING) handleCoreLogic(level, agent, true);
+    }
 
-        if (!agent.handshakeReceived && agent.state != State.STEP1_INITIALIZING) {
-            // Update tracking status for GUI
-            BlockPos nextGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
-                               (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
-                                agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
-                                agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
-            
-            if (nextGoal != null) {
-                if (!agent.waypoints.isEmpty()) {
-                    agent.lastStatusMessage = String.format("§7Navigating to Transmitter: §f%d, %d, %d", nextGoal.getX(), nextGoal.getY(), nextGoal.getZ());
-                } else {
-                    agent.lastStatusMessage = String.format("§bApproaching Goal: §f%d, %d, %d", nextGoal.getX(), nextGoal.getY(), nextGoal.getZ());
-                }
+    private static void processGhostMode(ServerLevel level, VirtualAgent agent) {
+        if (agent.isPhysicalActive) removePuppet(level, agent);
+        if (agent.ghostTicksRemaining > 0) { 
+            agent.ghostTicksRemaining--; 
+            BlockPos goal = getGoal(agent);
+            if (goal != null) {
+                Vec3 target = Vec3.atCenterOf(goal).add(0, 1.9, 0);
+                double d = agent.currentPos.distanceTo(target);
+                if (d > 0.1) agent.currentPos = agent.currentPos.add(target.subtract(agent.currentPos).normalize().scale(Math.min(0.55, d)));
             }
+            return; 
+        }
+        handleCoreLogic(level, agent, false);
+    }
+
+    private static void handleCoreLogic(ServerLevel level, VirtualAgent agent, boolean isTactical) {
+        DroneEntity p = isTactical ? getPuppet(level, agent) : null;
+        if (agent.waypoints.isEmpty()) {
+            BlockPos goal = getGoal(agent);
+            if (goal != null && BlockPos.containing(agent.currentPos).distSqr(goal) > 4) {
+                calculatePath(level, agent, BlockPos.containing(agent.currentPos), goal);
+                if (p != null) p.setWaypoints(new ArrayList<>(agent.waypoints));
+            }
+        }
+        if (!agent.waypoints.isEmpty()) {
+            BlockPos reached = agent.waypoints.remove(0);
+            agent.currentPos = Vec3.atCenterOf(reached).add(0, 1.9, 0);
+            syncObjectives(agent, p);
+            agent.handshakeReceived = false;
             return;
         }
-
         switch (agent.state) {
             case STEP1_INITIALIZING -> { 
-                agent.state = State.STEP2_GOING_TO_SOURCE; 
-                p.setTacticalObjective(agent.sourcePos);
-                agent.handshakeReceived = false; 
-                agent.lastStatusMessage = "§eEngaging collection protocols...";
+                agent.state = State.STEP2_GOING_TO_SOURCE; agent.lastStatusMessage = "§eEngaging collection protocols...";
+                calculatePath(level, agent, agent.hubPos, agent.sourcePos); syncObjectives(agent, p);
             }
             case STEP2_GOING_TO_SOURCE -> {
                 agent.carriedItem = callTagTransaction(level, agent.sourcePos, true, ItemStack.EMPTY);
-                p.setCarriedItem(agent.carriedItem.copy());
-                agent.state = State.STEP3_GOING_TO_TARGET;
-                List<BlockPos> path = TechNetwork.findMeshPath(level, agent.sourcePos, agent.targetPos, agent.networkId);
-                if (path.isEmpty() && !agent.sourcePos.equals(agent.targetPos)) { 
-                    agent.lastStatusMessage = "§cPath blocked to target! Seeking Asylum.";
-                    handleAsylum(level, agent, agent.sourcePos); 
-                    return; 
+                if (!agent.carriedItem.isEmpty()) {
+                    agent.state = State.STEP3_GOING_TO_TARGET; agent.lastStatusMessage = "§aItems secured. En route to Target.";
+                    calculatePath(level, agent, agent.sourcePos, agent.targetPos);
+                } else if (!tryShuttle(level, agent, agent.sourcePos, p)) {
+                    agent.state = State.STEP4_RETURNING_HOME; agent.lastStatusMessage = "§eSource empty. Returning to Hub.";
+                    calculatePath(level, agent, agent.sourcePos, agent.hubPos);
                 }
-                agent.waypoints = new ArrayList<>(path);
-                p.setTacticalObjective(agent.targetPos);
-                agent.handshakeReceived = false; 
-                agent.lastStatusMessage = "§aItems secured. En route to Target.";
+                syncObjectives(agent, p); agent.handshakeReceived = false;
             }
             case STEP3_GOING_TO_TARGET -> {
                 ItemStack before = agent.carriedItem.copy();
                 ItemStack left = callTagTransaction(level, agent.targetPos, false, agent.carriedItem);
                 agent.carriedItem = left;
-                p.setCarriedItem(agent.carriedItem.copy());
-                
                 if (!agent.carriedItem.isEmpty()) {
-                    if (ItemStack.matches(before, left) && level.getBlockEntity(agent.hubPos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
-                        hub.markTaskFull(agent.taskIndex, true);
-                    }
-                    // DESTINATION FULL: Return to Source Protocol
-                    agent.lastStatusMessage = "§eTarget Full! Returning to Source.";
-                    agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE;
-                    List<BlockPos> path = TechNetwork.findMeshPath(level, agent.targetPos, agent.sourcePos, agent.networkId);
-                    if (path.isEmpty() && !agent.targetPos.equals(agent.sourcePos)) { handleAsylum(level, agent, agent.targetPos); return; }
-                    agent.waypoints = new ArrayList<>(path);
-                    p.setTacticalObjective(agent.sourcePos);
-                } else {
-                    // Mission Successful: Try to shuttle or return home
-                    TechNetwork.NetworkNode hubNode = TechNetwork.getNodeAt(agent.hubPos);
-                    if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
-                        int nextTaskIdx = findBestTaskIndex(level, agent.hubPos, tasks, agent.uuid);
-                        if (nextTaskIdx != -1) {
-                            java.util.Map<?, ?> tMap = (java.util.Map<?, ?>) tasks.get(nextTaskIdx);
-                            BlockPos currentChest = agent.targetPos;
-                            agent.sourcePos = parsePos(tMap.get("source"));
-                            agent.targetPos = parsePos(tMap.get("target"));
-                            agent.taskIndex = nextTaskIdx;
-                            agent.state = State.STEP2_GOING_TO_SOURCE;
-                            List<BlockPos> path = TechNetwork.findMeshPath(level, currentChest, agent.sourcePos, agent.networkId);
-                            if (path.isEmpty() && !currentChest.equals(agent.sourcePos)) { handleAsylum(level, agent, currentChest); return; }
-                            agent.waypoints = new ArrayList<>(path);
-                            p.setTacticalObjective(agent.sourcePos);
-                            agent.lastStatusMessage = "§bShuttling to next assignment.";
-                        } else {
-                            agent.state = State.STEP4_RETURNING_HOME;
-                            List<BlockPos> returnPath = TechNetwork.findMeshPath(level, agent.targetPos, agent.hubPos, agent.networkId);
-                            if (returnPath.isEmpty() && !agent.targetPos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.targetPos); return; }
-                            agent.waypoints = new ArrayList<>(returnPath);
-                            p.setTacticalObjective(agent.hubPos);
-                            agent.lastStatusMessage = "§7Task complete. Returning to Hub.";
-                        }
-                    } else { agent.state = State.STEP4_RETURNING_HOME; p.setTacticalObjective(agent.hubPos); agent.lastStatusMessage = "§7Returning to Hub."; }
+                    if (ItemStack.matches(before, left) && level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) hub.markTaskFull(agent.taskIndex, true);
+                    agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE; agent.lastStatusMessage = "§eTarget Full! Returning to Source.";
+                    calculatePath(level, agent, agent.targetPos, agent.sourcePos);
+                } else if (!tryShuttle(level, agent, agent.targetPos, p)) {
+                    agent.state = State.STEP4_RETURNING_HOME; agent.lastStatusMessage = "§7Task complete. Returning to Hub.";
+                    calculatePath(level, agent, agent.targetPos, agent.hubPos);
                 }
-                agent.handshakeReceived = false; 
+                syncObjectives(agent, p); agent.handshakeReceived = false;
             }
             case STEP_RETURNING_ITEMS_TO_SOURCE -> {
-                ItemStack left = callTagTransaction(level, agent.sourcePos, false, agent.carriedItem);
-                agent.carriedItem = left;
-                p.setCarriedItem(agent.carriedItem.copy());
+                agent.carriedItem = callTagTransaction(level, agent.sourcePos, false, agent.carriedItem);
                 if (!agent.carriedItem.isEmpty()) {
-                    agent.lastStatusMessage = "§cAll storage full! Dropping items.";
-                    ItemEntity ie = new ItemEntity(level, agent.sourcePos.getX()+0.5, agent.sourcePos.getY()+1.0, agent.sourcePos.getZ()+0.5, agent.carriedItem.copy());
-                    level.addFreshEntity(ie);
+                    level.addFreshEntity(new ItemEntity(level, agent.sourcePos.getX()+0.5, agent.sourcePos.getY()+1.0, agent.sourcePos.getZ()+0.5, agent.carriedItem.copy()));
                     agent.carriedItem = ItemStack.EMPTY;
-                    p.setCarriedItem(ItemStack.EMPTY);
                 }
-                agent.state = State.STEP4_RETURNING_HOME;
-                List<BlockPos> path = TechNetwork.findMeshPath(level, agent.sourcePos, agent.hubPos, agent.networkId);
-                if (path.isEmpty() && !agent.sourcePos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.sourcePos); return; }
-                agent.waypoints = new ArrayList<>(path);
-                p.setTacticalObjective(agent.hubPos);
-                agent.handshakeReceived = false;
-                agent.lastStatusMessage = "§7Returning to Hub.";
+                agent.state = State.STEP4_RETURNING_HOME; agent.lastStatusMessage = "§7Returning to Hub.";
+                calculatePath(level, agent, agent.sourcePos, agent.hubPos);
+                syncObjectives(agent, p); agent.handshakeReceived = false;
             }
             case STEP4_RETURNING_HOME -> {
                 if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) {
                     if (!agent.carriedItem.isEmpty()) agent.carriedItem = hub.getInventory().addItem(agent.carriedItem);
-                    hub.onDroneReturn(agent.uuid, agent.homeSlot);
-                }
-                agent.state = State.STEP5_TERMINATING; agent.handshakeReceived = false; 
-                agent.lastStatusMessage = "§8Docking successful.";
-            }
-            case STEP5_TERMINATING -> {}
-        }
-    }
-
-    private static void processGhostMode(ServerLevel level, VirtualAgent agent) {
-        removePuppet(level, agent);
-        if (agent.ghostTicksRemaining > 0) { 
-            agent.ghostTicksRemaining--; 
-            BlockPos targetGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
-                                 (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
-                                  agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
-                                  agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
-            if (targetGoal != null) {
-                Vec3 targetVec = Vec3.atCenterOf(targetGoal).add(0, 1.9, 0);
-                Vec3 dir = targetVec.subtract(agent.currentPos).normalize();
-                agent.currentPos = agent.currentPos.add(dir.scale(0.55));
-                
-                // Update Ghost Status
-                if (!agent.waypoints.isEmpty()) {
-                    agent.lastStatusMessage = String.format("§8[GHOST] §7Approaching Transmitter: %d,%d,%d", targetGoal.getX(), targetGoal.getY(), targetGoal.getZ());
-                } else {
-                    agent.lastStatusMessage = String.format("§8[GHOST] §bEn route to Target: %d,%d,%d", targetGoal.getX(), targetGoal.getY(), targetGoal.getZ());
-                }
-            }
-            return; 
-        }
-        if (!agent.waypoints.isEmpty()) {
-            BlockPos reached = agent.waypoints.remove(0);
-            agent.currentPos = Vec3.atCenterOf(reached).add(0, 1.9, 0);
-            BlockPos nextGoal = agent.waypoints.isEmpty() ? (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : agent.hubPos) : agent.waypoints.get(0);
-            agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-            return;
-        }
-        switch (agent.state) {
-            case STEP1_INITIALIZING -> { 
-                agent.state = State.STEP2_GOING_TO_SOURCE; 
-                agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.hubPos, agent.sourcePos, agent.networkId));
-                BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
-                agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-                agent.lastStatusMessage = "§8[GHOST] §eInitializing flight...";
-            }
-            case STEP2_GOING_TO_SOURCE -> {
-                agent.carriedItem = callTagTransaction(level, agent.sourcePos, true, ItemStack.EMPTY);
-                if (!agent.carriedItem.isEmpty()) {
-                    agent.currentPos = Vec3.atCenterOf(agent.sourcePos).add(0, 1.9, 0);
-                    agent.state = State.STEP3_GOING_TO_TARGET;
-                    agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.sourcePos, agent.targetPos, agent.networkId));
-                    if (agent.waypoints.isEmpty() && !agent.sourcePos.equals(agent.targetPos)) { handleAsylum(level, agent, agent.sourcePos); return; }
-                    BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.targetPos : agent.waypoints.get(0);
-                    agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-                    agent.lastStatusMessage = "§8[GHOST] §aItems collected.";
-                } else agent.ghostTicksRemaining = 100;
-            }
-            case STEP3_GOING_TO_TARGET -> {
-                ItemStack left = callTagTransaction(level, agent.targetPos, false, agent.carriedItem);
-                agent.carriedItem = left;
-                if (!agent.carriedItem.isEmpty()) {
-                    agent.state = State.STEP_RETURNING_ITEMS_TO_SOURCE;
-                    agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.targetPos, agent.sourcePos, agent.networkId));
-                    BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
-                    agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-                    agent.lastStatusMessage = "§8[GHOST] §eTarget Full! Returning.";
-                    return;
-                }
-                if (agent.carriedItem.isEmpty()) {
-                    TechNetwork.NetworkNode hubNode = TechNetwork.getNodeAt(agent.hubPos);
-                    if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
-                        int nextTaskIdx = findBestTaskIndex(level, agent.hubPos, tasks, agent.uuid);
-                        if (nextTaskIdx != -1) {
-                            java.util.Map<?, ?> tMap = (java.util.Map<?, ?>) tasks.get(nextTaskIdx);
-                            BlockPos lastT = agent.targetPos;
-                            agent.sourcePos = parsePos(tMap.get("source"));
-                            agent.targetPos = parsePos(tMap.get("target"));
-                            agent.taskIndex = nextTaskIdx;
-                            agent.currentPos = Vec3.atCenterOf(lastT).add(0, 1.9, 0);
-                            agent.state = State.STEP2_GOING_TO_SOURCE;
-                            agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, lastT, agent.sourcePos, agent.networkId));
-                            if (agent.waypoints.isEmpty() && !lastT.equals(agent.sourcePos)) { handleAsylum(level, agent, lastT); return; }
-                            BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.sourcePos : agent.waypoints.get(0);
-                            agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-                            agent.lastStatusMessage = "§8[GHOST] §bShuttling.";
-                            return;
-                        }
-                    }
-                }
-                agent.currentPos = Vec3.atCenterOf(agent.targetPos).add(0, 1.9, 0);
-                agent.state = State.STEP4_RETURNING_HOME;
-                agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.targetPos, agent.hubPos, agent.networkId));
-                if (agent.waypoints.isEmpty() && !agent.targetPos.equals(agent.hubPos)) { handleAsylum(level, agent, agent.targetPos); return; }
-                BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.hubPos : agent.waypoints.get(0);
-                agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-                agent.lastStatusMessage = "§8[GHOST] §7Returning to base.";
-            }
-            case STEP_RETURNING_ITEMS_TO_SOURCE -> {
-                ItemStack left = callTagTransaction(level, agent.sourcePos, false, agent.carriedItem);
-                agent.carriedItem = left;
-                if (!agent.carriedItem.isEmpty()) {
-                    ItemEntity ie = new ItemEntity(level, agent.sourcePos.getX()+0.5, agent.sourcePos.getY()+1.0, agent.sourcePos.getZ()+0.5, agent.carriedItem.copy());
-                    level.addFreshEntity(ie);
-                    agent.carriedItem = ItemStack.EMPTY;
-                }
-                agent.state = State.STEP4_RETURNING_HOME;
-                agent.waypoints = new ArrayList<>(TechNetwork.findMeshPath(level, agent.sourcePos, agent.hubPos, agent.networkId));
-                BlockPos nextGoal = agent.waypoints.isEmpty() ? agent.hubPos : agent.waypoints.get(0);
-                agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-            }
-            case STEP4_RETURNING_HOME -> {
-                if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) {
-                    if (!agent.carriedItem.isEmpty()) hub.getInventory().addItem(agent.carriedItem);
                     hub.onDroneReturn(agent.uuid, agent.homeSlot);
                 }
                 FLEET.remove(agent.uuid);
@@ -384,94 +223,103 @@ public class LogisticsEngine {
         }
     }
 
-    private static ItemStack callTagTransaction(ServerLevel level, BlockPos pos, boolean pickup, ItemStack stack) {
-        if (level.getBlockEntity(pos) instanceof IOTagBlockEntity tag) return tag.secureRemoteProcess(pickup, stack);
-        return pickup ? ItemStack.EMPTY : stack;
+    private static void calculatePath(ServerLevel level, VirtualAgent agent, BlockPos start, BlockPos end) {
+        List<BlockPos> path = TechNetwork.findMeshPath(level, start, end, agent.networkId);
+        if (path.isEmpty() && !start.equals(end)) { agent.lastStatusMessage = "§cPath blocked! Seeking Asylum."; handleAsylum(level, agent, start); }
+        else agent.waypoints = new ArrayList<>(path);
     }
 
-    private static int calculateTravelTime(Vec3 start, BlockPos end) { return (int) (start.distanceTo(Vec3.atCenterOf(end)) / 0.55) + 20; }
+    private static boolean tryShuttle(ServerLevel level, VirtualAgent agent, BlockPos current, DroneEntity p) {
+        TechNetwork.NetworkNode hubNode = TechNetwork.getNodeAt(agent.hubPos);
+        if (hubNode != null && hubNode.settings.get("task_list") instanceof List<?> tasks) {
+            int nextTaskIdx = findBestTaskIndex(level, agent.hubPos, tasks, agent.uuid);
+            if (nextTaskIdx != -1) {
+                java.util.Map<?, ?> tMap = (java.util.Map<?, ?>) tasks.get(nextTaskIdx);
+                agent.sourcePos = parsePos(tMap.get("source")); agent.targetPos = parsePos(tMap.get("target")); agent.taskIndex = nextTaskIdx;
+                agent.state = State.STEP2_GOING_TO_SOURCE; agent.lastStatusMessage = "§bShuttling to next assignment.";
+                calculatePath(level, agent, current, agent.sourcePos); return true;
+            }
+        }
+        return false;
+    }
+
+    private static void syncObjectives(VirtualAgent agent, DroneEntity p) {
+        BlockPos next = agent.waypoints.isEmpty() ? getGoal(agent) : agent.waypoints.get(0);
+        if (p != null) { p.setWaypoints(new ArrayList<>(agent.waypoints)); if (next != null) p.setTacticalObjective(next); p.setCarriedItem(agent.carriedItem.copy()); }
+        else if (next != null) agent.ghostTicksRemaining = (int) (agent.currentPos.distanceTo(Vec3.atCenterOf(next).add(0, 1.9, 0)) / 0.55) + 5;
+    }
+
+    private static BlockPos getGoal(VirtualAgent agent) {
+        return switch (agent.state) {
+            case STEP2_GOING_TO_SOURCE -> agent.sourcePos;
+            case STEP3_GOING_TO_TARGET -> agent.targetPos;
+            case STEP_RETURNING_ITEMS_TO_SOURCE -> agent.sourcePos;
+            case STEP4_RETURNING_HOME -> agent.hubPos;
+            default -> null;
+        };
+    }
 
     private static void ensurePuppetExists(ServerLevel level, VirtualAgent agent) {
-        if (agent.puppetUuid != null && level.getEntity(agent.puppetUuid) != null) return;
-        DroneEntity p = new DroneEntity(ModEntities.DRONE, level);
-        p.setPos(agent.currentPos.x, agent.currentPos.y, agent.currentPos.z);
-        p.assignAgent(agent.uuid);
-        p.setTaskData(agent.sourcePos, agent.targetPos, agent.hubPos);
-        p.setCarriedItem(agent.carriedItem.copy());
-        if (level.addFreshEntity(p)) {
-            agent.puppetUuid = p.getUUID();
-            BlockPos goal = switch (agent.state) { case STEP2_GOING_TO_SOURCE -> agent.sourcePos; case STEP3_GOING_TO_TARGET -> agent.targetPos; case STEP_RETURNING_ITEMS_TO_SOURCE -> agent.sourcePos; case STEP4_RETURNING_HOME -> agent.hubPos; default -> null; };
-            if (goal != null) p.setTacticalObjective(goal);
-            agent.handshakeReceived = false; 
+        if (agent.isPhysicalActive && agent.puppetUuid != null && level.getEntity(agent.puppetUuid) != null) return;
+        agent.isPhysicalActive = false; agent.puppetUuid = null;
+        if (level.hasChunk(BlockPos.containing(agent.currentPos).getX() >> 4, BlockPos.containing(agent.currentPos).getZ() >> 4)) {
+            DroneEntity p = new DroneEntity(ModEntities.DRONE, level);
+            p.setPos(agent.currentPos.x, agent.currentPos.y, agent.currentPos.z);
+            p.assignAgent(agent.uuid);
+            p.setTaskData(agent.sourcePos, agent.targetPos, agent.hubPos);
+            p.setCarriedItem(agent.carriedItem.copy());
+            p.setWaypoints(new ArrayList<>(agent.waypoints));
+            if (level.addFreshEntity(p)) { agent.puppetUuid = p.getUUID(); agent.isPhysicalActive = true; BlockPos goal = getGoal(agent); if (goal != null) p.setTacticalObjective(goal); agent.handshakeReceived = false; }
         }
     }
 
     private static void removePuppet(ServerLevel level, VirtualAgent agent) {
-        if (agent.puppetUuid != null) { 
-            Entity e = level.getEntity(agent.puppetUuid); 
-            if (e instanceof DroneEntity p) {
-                agent.currentPos = p.position();
-                agent.carriedItem = p.getCarriedItem().copy(); 
-                BlockPos nextGoal = !agent.waypoints.isEmpty() ? agent.waypoints.get(0) : 
-                                   (agent.state == State.STEP2_GOING_TO_SOURCE ? agent.sourcePos : 
-                                    agent.state == State.STEP3_GOING_TO_TARGET ? agent.targetPos : 
-                                    agent.state == State.STEP_RETURNING_ITEMS_TO_SOURCE ? agent.sourcePos : agent.hubPos);
-                if (nextGoal != null) agent.ghostTicksRemaining = calculateTravelTime(agent.currentPos, nextGoal);
-            }
-            if (e != null) e.discard(); 
-            agent.puppetUuid = null; 
-        }
+        if (agent.puppetUuid != null) { Entity e = level.getEntity(agent.puppetUuid); if (e != null) e.discard(); agent.puppetUuid = null; agent.isPhysicalActive = false; }
     }
 
     private static DroneEntity getPuppet(ServerLevel level, VirtualAgent agent) { if (agent.puppetUuid == null) return null; Entity e = level.getEntity(agent.puppetUuid); return (e instanceof DroneEntity p) ? p : null; }
     public static void receiveHandshake(UUID id, Vec3 pos, ItemStack items) { VirtualAgent a = FLEET.get(id); if (a != null) { a.currentPos = pos; a.handshakeReceived = true; } }
-    public static void syncPuppetData(UUID id, Vec3 pos, ItemStack items) { VirtualAgent a = FLEET.get(id); if (a != null) { a.currentPos = pos; a.carriedItem = items.copy(); } }
+    public static void syncPuppetData(UUID id, Vec3 pos) { VirtualAgent a = FLEET.get(id); if (a != null) a.currentPos = pos; }
     public static void notifyPuppetDead(UUID id) { FLEET.remove(id); }
     public static boolean isAgentActive(UUID uuid) { return uuid != null && FLEET.containsKey(uuid); }
+    public static boolean isOfficialPuppet(UUID agentId, UUID entityId) { VirtualAgent a = FLEET.get(agentId); return a != null && entityId.equals(a.puppetUuid); }
+    public static void registerEvents() {} 
+    public static BlockPos requestOrders(UUID id) { VirtualAgent a = FLEET.get(id); return a != null ? getGoal(a) : null; }
 
     private static void processPlanningForHub(ServerLevel level, BlockPos pos) {
-        if (!(level.getBlockEntity(pos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) || !hub.canLaunch()) return;
-
+        if (!(level.getBlockEntity(pos) instanceof DroneStationBlockEntity hub) || !hub.canLaunch()) return;
         TechNetwork.NetworkNode node = TechNetwork.getNodeAt(pos);
-        if (node != null && node.type == TechNetwork.NodeType.DRONE_STATION) {
-            int dronesInHub = ((Number) node.settings.getOrDefault("drone_count", 0)).intValue();
-            long activeDrones = FLEET.values().stream().filter(a -> a.hubPos.equals(pos)).count();
-            if (activeDrones >= dronesInHub) return;
-            Object tasksObj = node.settings.get("task_list");
-            if (tasksObj instanceof List<?> tasks) {
-                int bestTaskIdx = findBestTaskIndex(level, pos, tasks, null);
-                if (bestTaskIdx != -1) {
-                    java.util.Map<?, ?> tMap = (java.util.Map<?, ?>) tasks.get(bestTaskIdx);
-                    BlockPos src = parsePos(tMap.get("source")), dst = parsePos(tMap.get("target"));
-                    int availableSlot = -1;
-                    for (int s = 0; s < 3; s++) { int slot = s; if (FLEET.values().stream().noneMatch(a -> a.hubPos.equals(pos) && a.homeSlot == slot)) { availableSlot = s; break; } }
-                    if (availableSlot == -1) return;
-                    UUID id = UUID.randomUUID();
-                    VirtualAgent va = new VirtualAgent(id, pos, node.networkId, availableSlot);
-                    va.sourcePos = src; va.targetPos = dst; va.taskIndex = bestTaskIdx;
-                    List<BlockPos> path = TechNetwork.findMeshPath(level, pos, src, node.networkId);
-                    if (path.isEmpty() && !pos.equals(src)) return;
-                    va.waypoints = new ArrayList<>(path);
-                    FLEET.put(id, va);
-                    hub.startLaunchCooldown(); // COOLDOWN STARTEN
-                }
+        if (node == null) return;
+        int dronesInHub = ((Number) node.settings.getOrDefault("drone_count", 0)).intValue();
+        long activeDrones = FLEET.values().stream().filter(a -> a.hubPos.equals(pos)).count();
+        if (activeDrones >= dronesInHub) return;
+        if (node.settings.get("task_list") instanceof List<?> tasks) {
+            int bestTaskIdx = findBestTaskIndex(level, pos, tasks, null);
+            if (bestTaskIdx != -1) {
+                java.util.Map<?, ?> tMap = (java.util.Map<?, ?>) tasks.get(bestTaskIdx);
+                int availableSlot = -1;
+                for (int s = 0; s < 3; s++) { int slot = s; if (FLEET.values().stream().noneMatch(a -> a.hubPos.equals(pos) && a.homeSlot == slot)) { availableSlot = s; break; } }
+                if (availableSlot == -1) return;
+                UUID id = UUID.randomUUID();
+                VirtualAgent va = new VirtualAgent(id, pos, node.networkId, availableSlot);
+                va.sourcePos = parsePos(tMap.get("source")); va.targetPos = parsePos(tMap.get("target")); va.taskIndex = bestTaskIdx;
+                List<BlockPos> path = TechNetwork.findMeshPath(level, pos, va.sourcePos, node.networkId);
+                if (path.isEmpty() && !pos.equals(va.sourcePos)) return;
+                va.waypoints = new ArrayList<>(path);
+                FLEET.put(id, va);
+                hub.startLaunchCooldown();
             }
         }
     }
 
     private static int findBestTaskIndex(ServerLevel level, BlockPos hubPos, List<?> tasks, UUID requestingDrone) {
-        int bestIdx = -1; int lowestPrio = Integer.MAX_VALUE;
+        int bestIdx = -1; int lowestPrioValue = Integer.MAX_VALUE;
         for (int i = 0; i < tasks.size(); i++) {
             if (tasks.get(i) instanceof java.util.Map<?, ?> tMap && (Boolean) tMap.get("enabled")) {
                 if (Boolean.TRUE.equals(tMap.get("is_full"))) continue;
                 int prio = 2; Object pObj = tMap.get("priority"); if (pObj instanceof Number n) prio = n.intValue();
                 BlockPos src = parsePos(tMap.get("source")), dst = parsePos(tMap.get("target"));
-                if (src != null && dst != null && canPerformTask(level, src, dst)) {
-                    if (prio < lowestPrio) {
-                        lowestPrio = prio;
-                        bestIdx = i;
-                    }
-                }
+                if (src != null && dst != null && canPerformTask(level, src, dst) && prio < lowestPrioValue) { lowestPrioValue = prio; bestIdx = i; }
             }
         }
         return bestIdx;
@@ -480,52 +328,40 @@ public class LogisticsEngine {
     private static boolean canPerformTask(ServerLevel level, BlockPos src, BlockPos dst) {
         TechNetwork.NetworkNode srcNode = TechNetwork.getNodeAt(src); TechNetwork.NetworkNode dstNode = TechNetwork.getNodeAt(dst);
         if (srcNode == null || dstNode == null) return false;
-        int itemCount = ((Number) srcNode.settings.getOrDefault("item_count", 0)).intValue();
-        int freeSpace = ((Number) dstNode.settings.getOrDefault("free_space", 0)).intValue();
-        return itemCount > 0 && freeSpace > 0;
+        return ((Number) srcNode.settings.getOrDefault("item_count", 0)).intValue() > 0 && ((Number) dstNode.settings.getOrDefault("free_space", 0)).intValue() > 0;
     }
 
     private static BlockPos parsePos(Object obj) {
         if (obj instanceof BlockPos bp) return bp;
-        if (obj instanceof java.util.Map<?, ?> map) { try { int x = ((Number) map.get("x")).intValue(), y = ((Number) map.get("y")).intValue(), z = ((Number) map.get("z")).intValue(); return new BlockPos(x, y, z); } catch (Exception e) { return null; } }
+        if (obj instanceof java.util.Map<?, ?> map) { try { return new BlockPos(((Number) map.get("x")).intValue(), ((Number) map.get("y")).intValue(), ((Number) map.get("z")).intValue()); } catch (Exception e) { return null; } }
         return null;
     }
 
-    private static void handleAsylum(ServerLevel level, VirtualAgent agent, BlockPos asylumPos) {
-        if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) { hub.getInventory().removeItem(agent.homeSlot, 1); }
-        ItemStack droneItem = new ItemStack(ModItems.DRONE_UNIT);
-        ItemStack leftDrone = callTagTransaction(level, asylumPos, false, droneItem);
-        ItemStack leftCargo = agent.carriedItem.isEmpty() ? ItemStack.EMPTY : callTagTransaction(level, asylumPos, false, agent.carriedItem);
-        if (!leftDrone.isEmpty()) { ItemEntity ie = new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftDrone); level.addFreshEntity(ie); }
-        if (!leftCargo.isEmpty()) { ItemEntity ie = new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftCargo); level.addFreshEntity(ie); }
-        removePuppet(level, agent); FLEET.remove(agent.uuid);
-    }
-
     public static void forceHubReset(ServerLevel level, BlockPos hubPos) {
-        String netId = TechNetwork.getNetIdFromRegistry(level, hubPos);
-        long ghostRemoved = FLEET.values().stream().filter(a -> a.hubPos.equals(hubPos)).count();
         FLEET.values().removeIf(a -> a.hubPos.equals(hubPos));
-        int entitiesRemoved = 0;
-        for (Entity e : level.getAllEntities()) { if (e instanceof DroneEntity drone) { if (drone.getHubPos().map(p -> p.equals(hubPos)).orElse(false)) { e.discard(); entitiesRemoved++; } } }
-        TechNetwork.broadcastToNetwork(level, netId, "§6[SYSTEM] §7Hub Reset: " + ghostRemoved + " agents & " + entitiesRemoved + " entities cleared.");
+        for (Entity e : level.getAllEntities()) { if (e instanceof DroneEntity drone && drone.getHubPos().map(p -> p.equals(hubPos)).orElse(false)) e.discard(); }
     }
 
     public static void onHubUpdated(ServerLevel level, BlockPos hubPos) { processPlanningForHub(level, hubPos); }
     public static void onNetworkUpdate(ServerLevel level, BlockPos tagPos) {
         String netId = TechNetwork.getNetIdFromRegistry(level, tagPos);
         if (netId != null && !netId.isEmpty()) {
-            for (TechNetwork.NetworkNode node : TechNetwork.SERVER_REGISTRY.values()) {
-                if (node.type == TechNetwork.NodeType.DRONE_STATION && node.networkId.equals(netId)) {
-                    if (level.getBlockEntity(node.pos) instanceof net.rdv88.redos.block.entity.DroneStationBlockEntity hub) {
-                        hub.resetFullTasksForTarget(tagPos);
-                    }
-                    processPlanningForHub(level, node.pos);
-                }
-            }
+            TechNetwork.SERVER_REGISTRY.values().stream().filter(n -> n.type == TechNetwork.NodeType.DRONE_STATION && n.networkId.equals(netId))
+                .forEach(n -> { if (level.getBlockEntity(n.pos) instanceof DroneStationBlockEntity hub) hub.resetFullTasksForTarget(tagPos); processPlanningForHub(level, n.pos); });
         }
     }
-    public static BlockPos getNextWaypoint(UUID agentId) { VirtualAgent a = FLEET.get(agentId); if (a != null && !a.waypoints.isEmpty()) return a.waypoints.get(0); return null; }
-    public static BlockPos getLookAheadWaypoint(UUID agentId) { VirtualAgent a = FLEET.get(agentId); if (a != null && a.waypoints.size() > 1) return a.waypoints.get(1); return null; }
-    public static void reachWaypoint(UUID agentId) { VirtualAgent a = FLEET.get(agentId); if (a != null && !a.waypoints.isEmpty()) a.waypoints.remove(0); }
+    private static void handleAsylum(ServerLevel level, VirtualAgent agent, BlockPos asylumPos) {
+        if (level.getBlockEntity(agent.hubPos) instanceof DroneStationBlockEntity hub) hub.getInventory().removeItem(agent.homeSlot, 1);
+        ItemStack droneItem = new ItemStack(ModItems.DRONE_UNIT);
+        ItemStack leftDrone = callTagTransaction(level, asylumPos, false, droneItem);
+        ItemStack leftCargo = agent.carriedItem.isEmpty() ? ItemStack.EMPTY : callTagTransaction(level, asylumPos, false, agent.carriedItem);
+        if (!leftDrone.isEmpty()) level.addFreshEntity(new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftDrone));
+        if (!leftCargo.isEmpty()) level.addFreshEntity(new ItemEntity(level, asylumPos.getX()+0.5, asylumPos.getY()+1.0, asylumPos.getZ()+0.5, leftCargo));
+        removePuppet(level, agent); FLEET.remove(agent.uuid);
+    }
+    private static ItemStack callTagTransaction(ServerLevel level, BlockPos pos, boolean pickup, ItemStack stack) {
+        if (level.getBlockEntity(pos) instanceof IOTagBlockEntity tag) return tag.secureRemoteProcess(pickup, stack);
+        return pickup ? ItemStack.EMPTY : stack;
+    }
     public static java.util.Collection<VirtualAgent> getFleet() { return FLEET.values(); }
 }

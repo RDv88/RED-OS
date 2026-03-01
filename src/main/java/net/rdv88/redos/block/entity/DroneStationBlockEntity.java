@@ -102,7 +102,14 @@ public class DroneStationBlockEntity extends BlockEntity implements ExtendedScre
 
     public static void tick(Level level, BlockPos pos, BlockState state, DroneStationBlockEntity be) {
         if (level.isClientSide()) return;
-        if (be.launchCooldown > 0) be.launchCooldown--;
+        if (be.launchCooldown > 0) {
+            be.launchCooldown--;
+            // KETTINGREACTIE: Als de cooldown 0 wordt, laat de Engine direct kijken 
+            // of de volgende drone in de Hub ook weg kan voor de taak.
+            if (be.launchCooldown == 0 && level instanceof ServerLevel sl) {
+                LogisticsEngine.onHubUpdated(sl, pos);
+            }
+        }
         if (!be.chunkForced && level instanceof ServerLevel sl) { sl.setChunkForced(new net.minecraft.world.level.ChunkPos(pos).x, new net.minecraft.world.level.ChunkPos(pos).z, true); be.chunkForced = true; }
         if (level.getGameTime() % 40 == 0) be.registerInNetwork();
     }

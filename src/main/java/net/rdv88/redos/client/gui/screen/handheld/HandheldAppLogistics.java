@@ -342,7 +342,7 @@ public class HandheldAppLogistics implements HandheldApp {
     }
 
     @Override public boolean isEditMode() { 
-        return (nameInput != null && nameInput.isFocused()) || (idInput != null && idInput.isFocused()); 
+        return selectedPos != null && currentView == View.CONFIG; 
     }
 
     public static void clearState() { currentView = View.MENU; selectedPos = null; targetScroll = 0; scrollPos = 0; }

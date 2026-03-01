@@ -36,6 +36,7 @@ public class Redos implements ModInitializer {
         LOGGER.info("Initializing RED-OS V{}... 🔴", VERSION);
         net.rdv88.redos.util.UpdateChecker.checkForUpdates();
         net.rdv88.redos.util.ChatManager.registerEvents();
+        net.rdv88.redos.util.LogisticsEngine.registerEvents();
 
         // Server-side response receiver (Handshake Enforcement V1.0.5)
         ServerLoginNetworking.registerGlobalReceiver(ModMessages.VERSION_CHECK_ID, (server, handler, understood, buf, synchronizer, sender) -> {
@@ -108,7 +109,7 @@ public class Redos implements ModInitializer {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             String worldName = server.getWorldData().getLevelName();
             TechNetwork.loadDatabase(worldName);
-            net.rdv88.redos.util.LogisticsEngine.loadFleet(server.overworld());
+            net.rdv88.redos.util.LogisticsEngine.loadFleet(server);
             
             // CONFIG INITIALIZATION
             net.rdv88.redos.util.DiscordConfig.setWorldName(worldName);
@@ -121,11 +122,12 @@ public class Redos implements ModInitializer {
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TechNetwork.saveDatabase(false);
-            net.rdv88.redos.util.LogisticsEngine.saveFleet(server.overworld(), false);
+            net.rdv88.redos.util.LogisticsEngine.saveFleet(server, false);
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             TechNetwork.saveDatabase(false);
+            // Shutdown hook doesn't always have a server context, LogisticsEngine handles null server.
             net.rdv88.redos.util.LogisticsEngine.saveFleet(null, false);
         }));
 

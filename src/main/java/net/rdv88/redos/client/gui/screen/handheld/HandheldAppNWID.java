@@ -56,6 +56,8 @@ public class HandheldAppNWID implements HandheldApp {
         if (editingProfile != null) idInput.setValue(editingProfile.id());
         adder.add(idInput);
         nameInput.setFocused(true);
+        
+        adder.add(new HandheldScreen.NavButton(sx + 55, sy + 125, 160, 18, "SAVE PROFILE", b -> save(), 0xFF0055AA));
     }
 
     @Override public Optional<GuiEventListener> getInitialFocus() {
@@ -136,9 +138,11 @@ public class HandheldAppNWID implements HandheldApp {
     }
     
     @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) { 
+        if (isAdding || editingProfile != null) { 
+            if (event.key() == 257 || event.key() == 335) { save(); return true; } 
+        }
         if (nameInput != null && nameInput.isFocused()) return nameInput.keyPressed(event);
         if (idInput != null && idInput.isFocused()) return idInput.keyPressed(event);
-        if (isAdding || editingProfile != null) { if (event.key() == 257 || event.key() == 335) { save(); return true; } }
         return false; 
     }
     

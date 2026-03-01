@@ -145,7 +145,7 @@ public class ModMessages {
                 Set<String> activeIds = new HashSet<>(Arrays.asList(playerNetIds.split(",")));
                 
                 List<SyncFleetStatusPayload.DroneTaskStatus> missions = new ArrayList<>();
-                for (net.rdv88.redos.util.LogisticsEngine.VirtualAgent agent : net.rdv88.redos.util.LogisticsEngine.getFleet()) {
+                for (net.rdv88.redos.util.VirtualAgent agent : net.rdv88.redos.util.LogisticsEngine.getFleet()) {
                     if (activeIds.contains(agent.networkId)) {
                         String sName = "Unknown", dName = "Unknown";
                         net.rdv88.redos.util.TechNetwork.NetworkNode sn = net.rdv88.redos.util.TechNetwork.getNodeAt(agent.sourcePos);
@@ -442,11 +442,20 @@ public class ModMessages {
                 ServerPlayer player = context.player();
                 if (payload.newId().equals("STOP_TRACKING")) {
                     TechNetwork.stopTrackingHandheld(player);
+                } else if (payload.newId().equals("INITIALIZE")) {
+                    ItemStack stack = player.getMainHandItem();
+                    if (!(stack.getItem() instanceof HandheldDeviceItem)) stack = player.getOffhandItem();
+                    if (stack.getItem() instanceof HandheldDeviceItem) {
+                        HandheldDeviceItem.setInitialized(stack);
+                    }
                 } else {
                     ItemStack stack = player.getMainHandItem();
                     if (!(stack.getItem() instanceof HandheldDeviceItem)) stack = player.getOffhandItem();
                     if (stack.getItem() instanceof HandheldDeviceItem) {
-                        HandheldDeviceItem.setNetworkId(stack, payload.newId());
+                        if (!payload.newId().equals("STOP_TRACKING")) {
+                            HandheldDeviceItem.setNetworkId(stack, payload.newId());
+                            // AUTOMATIC INITIALIZATION REMOVED: Flag must be set by Acknowledge button only.
+                        }
                         TechNetwork.startTrackingHandheld(player, payload.newId());
                         var data = TechNetwork.calculateVisibleDevices(player, payload.newId());
                         ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data));

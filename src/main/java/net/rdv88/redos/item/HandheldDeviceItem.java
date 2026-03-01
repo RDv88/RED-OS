@@ -91,7 +91,12 @@ public class HandheldDeviceItem extends Item {
                 });
             }
         });
-        if (profiles.isEmpty()) profiles.add(new SyncProfilesPayload.ProfileData("Default", "00000"));
+        
+        // HARD GUARANTEE: Ensure 'Default' (00000) always exists at the top
+        if (profiles.stream().noneMatch(p -> p.id().equals("00000"))) {
+            profiles.add(0, new SyncProfilesPayload.ProfileData("Default", "00000"));
+        }
+        
         return profiles;
     }
 
@@ -104,5 +109,22 @@ public class HandheldDeviceItem extends Item {
     public static String getNetworkId(ItemStack stack) {
         CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         return tag.getString("networkId").orElse("00000");
+    }
+
+    public static boolean isInitialized(ItemStack stack) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        return tag.getBoolean("initialized").orElse(false);
+    }
+
+    public static void setInitialized(ItemStack stack) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.put("initialized", net.minecraft.nbt.ByteTag.valueOf(true));
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    public static void resetInitialization(ItemStack stack) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.remove("initialized");
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 }

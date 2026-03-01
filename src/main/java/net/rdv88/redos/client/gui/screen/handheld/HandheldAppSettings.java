@@ -91,6 +91,7 @@ public class HandheldAppSettings implements HandheldApp {
     private void performReset() {
         profiles.clear(); profiles.add(new SyncProfilesPayload.ProfileData("Default", "00000"));
         activeIds.clear(); activeIds.add("00000");
+        net.rdv88.redos.item.HandheldDeviceItem.resetInitialization(Minecraft.getInstance().player.getMainHandItem());
         HandheldScreen.updateNetworkIds(); 
         ClientPlayNetworking.send(new SyncProfilesPayload(new ArrayList<>(profiles)));
         HandheldScreen.showToast("OS REINSTALLED");

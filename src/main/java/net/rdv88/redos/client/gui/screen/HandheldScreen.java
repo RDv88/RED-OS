@@ -47,6 +47,7 @@ public class HandheldScreen extends Screen {
     private static final int SCREEN_HEIGHT = 170;
 
     public static void setSavedApp(String name) { savedAppName = name; }
+    public String getCurrentAppName() { return currentAppName; }
 
     public HandheldScreen(ItemStack stack, Player player) {
         super(Component.literal("RED-OS Handheld"));
@@ -55,7 +56,14 @@ public class HandheldScreen extends Screen {
         this.activeIds = parseIds(HandheldDeviceItem.getNetworkId(stack));
         this.savedProfiles.addAll(HandheldDeviceItem.getProfiles(stack));
         currentInstance = this;
-        this.currentAppName = savedAppName;
+        
+        // CHECK INITIALIZATION: If new device, force Welcome Screen
+        if (!net.rdv88.redos.item.HandheldDeviceItem.isInitialized(stack)) {
+            this.currentAppName = "WELCOME";
+        } else {
+            this.currentAppName = savedAppName;
+        }
+        
         ClientPlayNetworking.send(new ConfigureHandheldPayload(HandheldDeviceItem.getNetworkId(stack)));
     }
 
@@ -86,6 +94,10 @@ public class HandheldScreen extends Screen {
     }
 
     public static void updateNetworkIds() {
+        syncHandheldStateWithServer();
+    }
+
+    public static void syncHandheldStateWithServer() {
         if (currentInstance != null) {
             String raw = String.join(",", currentInstance.activeIds);
             net.rdv88.redos.item.HandheldDeviceItem.setNetworkId(currentInstance.stack, raw);
@@ -122,31 +134,37 @@ public class HandheldScreen extends Screen {
 
         int btnY = screenY + SCREEN_HEIGHT - 14; 
         
-        if (currentAppName.equals("HOME")) {
+        if (currentAppName.equals("WELCOME")) {
+            // NO NAVIGATION BUTTONS ON WELCOME SCREEN
+        } else if (currentAppName.equals("HOME")) {
             this.addRenderableWidget(new NavButton(screenX + 2, btnY - 2, 20, 14, "O", b -> this.onClose(), 0xFF880000));
         } else {
             this.addRenderableWidget(new NavButton(screenX + 2, btnY - 2, 20, 14, "H", b -> requestAppSwitch("HOME"), 0xFF0055AA));
             this.addRenderableWidget(new NavButton(screenX + 24, btnY - 2, 20, 14, "<", b -> handleBackNavigation(), 0xFF444444));
             
             if (isEditModeActive()) {
-                this.addRenderableWidget(new NavButton(screenX + (SCREEN_WIDTH / 2) - 17, btnY - 2, 35, 14, "SAVE", b -> handleSaveAction(), 0xFF00AA22));
+                this.addRenderableWidget(new NavButton(screenX + SCREEN_WIDTH - 37, btnY - 2, 35, 14, "SAVE", b -> handleSaveAction(), 0xFF00AA22));
             }
         }
 
-        this.currentApp = switch (currentAppName) {
-            case "NETWORK" -> new HandheldAppNWID(savedProfiles, activeIds);
-            case "TRANSMITTERS" -> new HandheldAppTransmittor(VISIBLE_DEVICES);
-            case "CAMERA" -> new HandheldAppCamera(VISIBLE_DEVICES);
-            case "SENSORS" -> new HandheldAppSensor(VISIBLE_DEVICES);
-            case "TRIGGERS" -> new HandheldAppTriggers(VISIBLE_DEVICES);
-            case "SETTINGS" -> new HandheldAppSettings(savedProfiles, activeIds);
-            case "HIGHTECH" -> new HandheldAppHighTech(VISIBLE_DEVICES);
-            case "LOGISTICS" -> new HandheldAppLogistics(VISIBLE_DEVICES);
-            case "CHAT" -> new HandheldAppChat();
-            case "ADMIN" -> new HandheldAppAdmin();
-            case "DISCORD_STATUS" -> new HandheldAppDiscordStatus();
-            default -> new HandheldAppHome();
-        };
+        if (this.currentApp == null || !currentAppName.equals(savedAppName)) {
+            this.currentApp = switch (currentAppName) {
+                case "WELCOME" -> new net.rdv88.redos.client.gui.screen.handheld.HandheldAppWelcome();
+                case "NETWORK" -> new HandheldAppNWID(savedProfiles, activeIds);
+                case "TRANSMITTERS" -> new HandheldAppTransmittor(VISIBLE_DEVICES);
+                case "CAMERA" -> new HandheldAppCamera(VISIBLE_DEVICES);
+                case "SENSORS" -> new HandheldAppSensor(VISIBLE_DEVICES);
+                case "TRIGGERS" -> new HandheldAppTriggers(VISIBLE_DEVICES);
+                case "SETTINGS" -> new HandheldAppSettings(savedProfiles, activeIds);
+                case "HIGHTECH" -> new HandheldAppHighTech(VISIBLE_DEVICES);
+                case "LOGISTICS" -> new HandheldAppLogistics(VISIBLE_DEVICES);
+                case "CHAT" -> new HandheldAppChat();
+                case "ADMIN" -> new HandheldAppAdmin();
+                case "DISCORD_STATUS" -> new HandheldAppDiscordStatus();
+                default -> new HandheldAppHome();
+            };
+            savedAppName = currentAppName;
+        }
 
         this.currentApp.init(screenX, screenY, SCREEN_WIDTH, SCREEN_HEIGHT, new HandheldApp.WidgetAdder() {
             @Override

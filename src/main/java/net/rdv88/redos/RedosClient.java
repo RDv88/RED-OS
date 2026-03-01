@@ -50,8 +50,29 @@ public class RedosClient implements ClientModInitializer {
         }
     }
 
+    private static net.minecraft.client.KeyMapping handheldKey;
+
     @Override
     public void onInitializeClient() {
+        handheldKey = net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper.registerKeyBinding(new net.minecraft.client.KeyMapping(
+            "key.redos.open_handheld", 
+            org.lwjgl.glfw.GLFW.GLFW_KEY_H, 
+            net.minecraft.client.KeyMapping.Category.INVENTORY
+        ));
+
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (handheldKey.consumeClick()) {
+                if (client.player != null) {
+                    net.minecraft.world.item.ItemStack handheld = findHandheld(client.player);
+                    if (!handheld.isEmpty()) {
+                        net.rdv88.redos.client.ClientUtil.openHandheldScreen(handheld, client.player);
+                    } else {
+                        client.player.displayClientMessage(Component.literal("§c[RED-OS] §7Handheld not found in inventory."), true);
+                    }
+                }
+            }
+        });
+
         EntityModelLayerRegistry.registerModelLayer(DroneStationBlockEntityRenderer.LAYER_LOCATION, DroneStationBlockEntityRenderer::createModelData);
 
         EntityRendererRegistry.register(ModEntities.WATCHER, WatcherEntityRenderer::new);
@@ -167,5 +188,31 @@ public class RedosClient implements ClientModInitializer {
                 }).start();
             }
         });
+    }
+
+    private net.minecraft.world.item.ItemStack findHandheld(net.minecraft.world.entity.player.Player player) {
+        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+        // 1. Check all slots in main inventory
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack stack = inv.getItem(i);
+            if (stack.getItem() instanceof net.rdv88.redos.item.HandheldDeviceItem) return stack;
+            // Recursively check containers (Shulkers, Bundles, etc)
+            net.minecraft.world.item.ItemStack nested = searchInside(stack);
+            if (!nested.isEmpty()) return nested;
+        }
+        return net.minecraft.world.item.ItemStack.EMPTY;
+    }
+
+    private net.minecraft.world.item.ItemStack searchInside(net.minecraft.world.item.ItemStack container) {
+        if (container.isEmpty()) return net.minecraft.world.item.ItemStack.EMPTY;
+        
+        // Use Minecraft's Container component API (1.21.11 compatible)
+        net.minecraft.world.item.component.ItemContainerContents contents = container.get(net.minecraft.core.component.DataComponents.CONTAINER);
+        if (contents != null) {
+            for (net.minecraft.world.item.ItemStack stack : contents.nonEmptyItems()) {
+                if (stack.getItem() instanceof net.rdv88.redos.item.HandheldDeviceItem) return stack;
+            }
+        }
+        return net.minecraft.world.item.ItemStack.EMPTY;
     }
 }

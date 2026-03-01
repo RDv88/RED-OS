@@ -9,7 +9,8 @@
     "ItemBlockRenderTypesMixin",
     "DisconnectedScreenMixin",
     "ClientHandshakePacketListenerImplMixin",
-    "MinecraftClientMixin"
+    "MinecraftClientMixin",
+    "ChatComponentMixin"
   ],
   "mixins": [
     "ContainerChangeMixin",

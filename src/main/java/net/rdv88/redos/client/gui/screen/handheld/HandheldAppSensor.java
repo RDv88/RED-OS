@@ -136,7 +136,7 @@ public class HandheldAppSensor implements HandheldApp {
     }
 
     @Override public boolean isEditMode() { 
-        return (nameInput != null && nameInput.isFocused()) || (idInput != null && idInput.isFocused()); 
+        return selectedPos != null; 
     }
     
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float delta, int sx, int sy, int w, int h) {
