@@ -380,6 +380,14 @@ public class HandheldAppChat implements HandheldApp {
         return false;
     }
 
+    @Override
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        if (chatInput != null && chatInput.isVisible() && chatInput.isFocused()) {
+            return chatInput.charTyped(event);
+        }
+        return false;
+    }
+
     public void sendMessage() {
         if (chatInput != null && !chatInput.getValue().isEmpty()) {
             String msg = chatInput.getValue();

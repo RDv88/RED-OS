@@ -121,10 +121,6 @@ public class HandheldAppAdmin implements HandheldApp {
     }
 
     private void setupDiscord(int sx, int sy, int w, int h, WidgetAdder adder) {
-        boolean active = discordOnline;
-        String btnText = active ? "BRIDGE: ON" : "BRIDGE: OFF";
-        int btnCol = active ? 0xFF00AA22 : 0xFF880000;
-
         genericInput = new EditBox(font, sx + 75, sy + 33, w - 85, 12, Component.literal(""));
         genericInput.setMaxLength(100);
         adder.add(genericInput);
@@ -133,6 +129,10 @@ public class HandheldAppAdmin implements HandheldApp {
         genericInput2.setMaxLength(30);
         adder.add(genericInput2);
 
+        // LIVE TOGGLE BUTTON: Reflects current discordOnline status
+        String btnText = discordOnline ? "BRIDGE: ON" : "BRIDGE: OFF";
+        int btnCol = discordOnline ? 0xFF00AA22 : 0xFF880000;
+        
         adder.add(new CommandButton(sx + 10, sy + 85, 80, 14, btnText, btnCol, b -> sendAction(AdminActionPayload.ActionType.RELOAD_CONFIG, "TOGGLE_DISCORD", "")));
         adder.add(new CommandButton(sx + w - 90, sy + 85, 80, 14, "RESET CONFIG", 0xFFCC0000, b -> sendAction(AdminActionPayload.ActionType.RESET_DISCORD, "", "")));
 
@@ -284,6 +284,13 @@ public class HandheldAppAdmin implements HandheldApp {
         if (event.key() == 257 || event.key() == 335) { save(); return true; }
         return false; 
     }
+
+    @Override
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        if (genericInput != null && genericInput.isFocused() && genericInput.charTyped(event)) return true;
+        if (genericInput2 != null && genericInput2.isFocused() && genericInput2.charTyped(event)) return true;
+        return false;
+    }
     
     @Override public boolean mouseClicked(double mx, double my, int button, int sx, int sy, int sw, int sh) { 
         if (genericInput != null) genericInput.setFocused(mx >= genericInput.getX() && mx < genericInput.getX() + genericInput.getWidth() && my >= genericInput.getY() && my < genericInput.getY() + genericInput.getHeight());
@@ -378,7 +385,7 @@ public class HandheldAppAdmin implements HandheldApp {
     }
 
     public void back() {
-        if (currentView != View.MENU) { currentView = View.MENU; targetScroll = 0; scrollPos = 0; HandheldScreen.refreshApp(); }
+        if (currentView != View.MENU) { currentView = View.MENU; genericInput = null; genericInput2 = null; targetScroll = 0; scrollPos = 0; HandheldScreen.refreshApp(); }
         else HandheldScreen.requestAppSwitch("HOME");
     }
 
@@ -386,7 +393,7 @@ public class HandheldAppAdmin implements HandheldApp {
     private class IconButton extends net.minecraft.client.gui.components.Button {
         private final ItemStack icon; private final String label; private final View target;
         public IconButton(int x, int y, int w, int h, ItemStack i, String l, View v) {
-            super(x, y, w, h, Component.empty(), b -> { currentView = v; scrollPos = 0; targetScroll = 0; HandheldScreen.refreshApp(); }, DEFAULT_NARRATION);
+            super(x, y, w, h, Component.empty(), b -> { currentView = v; genericInput = null; genericInput2 = null; scrollPos = 0; targetScroll = 0; HandheldScreen.refreshApp(); }, DEFAULT_NARRATION);
             this.icon = i; this.label = l; this.target = v;
         }
         @Override public void onPress(net.minecraft.client.input.InputWithModifiers m) { this.onPress.onPress(this); }

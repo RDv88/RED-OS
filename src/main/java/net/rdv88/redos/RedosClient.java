@@ -117,6 +117,10 @@ public class RedosClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SyncSystemInfoPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 net.rdv88.redos.client.gui.screen.handheld.HandheldAppAdmin.handleSystemSync(payload);
+                // Respect Edit Mode: Don't refresh UI if player is typing
+                if (!HandheldScreen.isEditModeActive()) {
+                    HandheldScreen.refreshApp();
+                }
             });
         });
 
@@ -163,6 +167,7 @@ public class RedosClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SyncFleetStatusPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 net.rdv88.redos.client.gui.screen.handheld.HandheldAppLogistics.updateMissionList(payload.activeMissions());
+                HandheldScreen.refreshApp();
             });
         });
 

@@ -141,7 +141,9 @@ public class ModMessages {
         ServerPlayNetworking.registerGlobalReceiver(RequestFleetStatusPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 ServerPlayer player = context.player();
-                String playerNetIds = net.rdv88.redos.item.HandheldDeviceItem.getNetworkId(player.getMainHandItem());
+                // FIX: Search entire inventory for the handheld to get active Network IDs
+                ItemStack handheld = findHandheldInInventory(player);
+                String playerNetIds = handheld.isEmpty() ? "" : net.rdv88.redos.item.HandheldDeviceItem.getNetworkId(handheld);
                 Set<String> activeIds = new HashSet<>(Arrays.asList(playerNetIds.split(",")));
                 
                 List<SyncFleetStatusPayload.DroneTaskStatus> missions = new ArrayList<>();
@@ -442,22 +444,21 @@ public class ModMessages {
                 ServerPlayer player = context.player();
                 if (payload.newId().equals("STOP_TRACKING")) {
                     TechNetwork.stopTrackingHandheld(player);
-                } else if (payload.newId().equals("INITIALIZE")) {
-                    ItemStack stack = player.getMainHandItem();
-                    if (!(stack.getItem() instanceof HandheldDeviceItem)) stack = player.getOffhandItem();
-                    if (stack.getItem() instanceof HandheldDeviceItem) {
-                        HandheldDeviceItem.setInitialized(stack);
-                    }
                 } else {
-                    ItemStack stack = player.getMainHandItem();
-                    if (!(stack.getItem() instanceof HandheldDeviceItem)) stack = player.getOffhandItem();
-                    if (stack.getItem() instanceof HandheldDeviceItem) {
-                        if (!payload.newId().equals("STOP_TRACKING")) {
-                            HandheldDeviceItem.setNetworkId(stack, payload.newId());
-                            // AUTOMATIC INITIALIZATION REMOVED: Flag must be set by Acknowledge button only.
+                    // FIND HANDHELD: Use the new helper to find the device anywhere in inventory (Shulkers, etc)
+                    ItemStack stack = findHandheldInInventory(player);
+                    
+                    if (!stack.isEmpty()) {
+                        String nwid = payload.newId();
+                        if (nwid.equals("INITIALIZE")) {
+                            HandheldDeviceItem.setInitialized(stack);
+                            nwid = HandheldDeviceItem.getNetworkId(stack);
+                        } else {
+                            HandheldDeviceItem.setNetworkId(stack, nwid);
                         }
-                        TechNetwork.startTrackingHandheld(player, payload.newId());
-                        var data = TechNetwork.calculateVisibleDevices(player, payload.newId());
+                        
+                        TechNetwork.startTrackingHandheld(player, nwid);
+                        var data = TechNetwork.calculateVisibleDevices(player, nwid);
                         ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data));
                     }
                 }
@@ -708,5 +709,20 @@ public class ModMessages {
                 ServerPlayNetworking.send(p, new SyncChatHistoryPayload(genHistory, discHistory, new ArrayList<>()));
             }
         }
+
+    private static ItemStack findHandheldInInventory(ServerPlayer player) {
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack s = inv.getItem(i);
+            if (s.getItem() instanceof HandheldDeviceItem) return s;
+            var contents = s.get(net.minecraft.core.component.DataComponents.CONTAINER);
+            if (contents != null) {
+                for (ItemStack nested : contents.nonEmptyItems()) {
+                    if (nested.getItem() instanceof HandheldDeviceItem) return nested;
+                }
+            }
+        }
+        return ItemStack.EMPTY;
     }
+}
     

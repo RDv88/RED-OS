@@ -155,6 +155,15 @@ public class HandheldAppTransmittor implements HandheldApp {
         }
         return false; 
     }
+
+    @Override
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        if (selectedPos != null) {
+            if (nameInput != null && nameInput.isFocused()) return nameInput.charTyped(event);
+            if (idInput != null && idInput.isFocused()) return idInput.charTyped(event);
+        }
+        return false;
+    }
     
     @Override public boolean mouseClicked(double mx, double my, int button, int sx, int sy, int w, int h) { 
         if (selectedPos != null) {

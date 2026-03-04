@@ -115,7 +115,8 @@ public class HandheldScreen extends Screen {
         CameraViewScreen.setDeviceCache(list);
         QuantumPorterScreen.setDeviceCache(list);
         if (currentInstance != null) {
-            if (currentInstance.isEditModeActive()) return;
+            // Intelligent refresh: Only block if the current app is in an active edit state
+            if (currentInstance.currentApp != null && currentInstance.currentApp.isEditMode()) return;
             refreshApp(); 
         }
     }
@@ -147,9 +148,13 @@ public class HandheldScreen extends Screen {
             }
         }
 
-        if (this.currentApp == null || !currentAppName.equals(savedAppName)) {
+        // PERSISTENT APPS: Only the WELCOME screen needs to keep state for animations
+        if (currentAppName.equals("WELCOME")) {
+            if (this.currentApp == null || !savedAppName.equals("WELCOME")) {
+                this.currentApp = new net.rdv88.redos.client.gui.screen.handheld.HandheldAppWelcome();
+            }
+        } else {
             this.currentApp = switch (currentAppName) {
-                case "WELCOME" -> new net.rdv88.redos.client.gui.screen.handheld.HandheldAppWelcome();
                 case "NETWORK" -> new HandheldAppNWID(savedProfiles, activeIds);
                 case "TRANSMITTERS" -> new HandheldAppTransmittor(VISIBLE_DEVICES);
                 case "CAMERA" -> new HandheldAppCamera(VISIBLE_DEVICES);
@@ -163,8 +168,8 @@ public class HandheldScreen extends Screen {
                 case "DISCORD_STATUS" -> new HandheldAppDiscordStatus();
                 default -> new HandheldAppHome();
             };
-            savedAppName = currentAppName;
         }
+        savedAppName = currentAppName;
 
         this.currentApp.init(screenX, screenY, SCREEN_WIDTH, SCREEN_HEIGHT, new HandheldApp.WidgetAdder() {
             @Override
@@ -176,8 +181,8 @@ public class HandheldScreen extends Screen {
         this.currentApp.getInitialFocus().ifPresent(this::setFocused);
     }
 
-    private boolean isEditModeActive() {
-        if (currentApp != null) return currentApp.isEditMode();
+    public static boolean isEditModeActive() {
+        if (currentInstance != null && currentInstance.currentApp != null) return currentInstance.currentApp.isEditMode();
         return false;
     }
 
@@ -362,6 +367,18 @@ public class HandheldScreen extends Screen {
             }
         }
         return super.keyPressed(event);
+    }
+
+    @Override
+    public void setFocused(net.minecraft.client.gui.components.events.GuiEventListener focused) {
+        super.setFocused(focused);
+        if (focused instanceof net.minecraft.client.gui.components.EditBox eb) eb.setFocused(true);
+    }
+
+    @Override
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        if (currentApp != null && currentApp.charTyped(event)) return true;
+        return super.charTyped(event);
     }
 
     @Override

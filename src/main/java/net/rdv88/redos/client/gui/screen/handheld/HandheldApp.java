@@ -4,6 +4,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import java.util.Optional;
 
 public interface HandheldApp {
@@ -16,7 +19,9 @@ public interface HandheldApp {
     void render(GuiGraphics g, int mouseX, int mouseY, float delta, int screenX, int screenY, int width, int height);
     void tick();
     
-    boolean keyPressed(net.minecraft.client.input.KeyEvent event);
+    // Human Readable Input Methods (Minecraft 1.21.11)
+    boolean keyPressed(KeyEvent event);
+    default boolean charTyped(CharacterEvent event) { return false; }
     boolean mouseClicked(double mouseX, double mouseY, int button, int sx, int sy, int w, int h);
     default boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY, int sx, int sy, int w, int h) { return false; }
     default boolean mouseReleased(double mouseX, double mouseY, int button, int sx, int sy, int w, int h) { return false; }
