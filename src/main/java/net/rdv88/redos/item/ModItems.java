@@ -18,6 +18,11 @@ public class ModItems {
     public static final Item HANDHELD_DEVICE = registerItem("handheld_device", props -> new HandheldDeviceItem(props.stacksTo(1)));
     public static final Item PLASMA_PULSE_DISINTEGRATOR = registerItem("plasma_pulse_disintegrator", props -> new PlasmaPulseDisintegratorItem(props.stacksTo(1).durability(500)));
     public static final Item DRONE_UNIT = registerItem("drone_unit", props -> new Item(props.stacksTo(16)));
+    public static final Item WARDEN_CORE = registerItem("warden_core", props -> new Item(props.stacksTo(16).rarity(net.minecraft.world.item.Rarity.RARE)));
+    public static final Item ION_EXO_CHESTPLATE = registerItem("ion_exo_chestplate", props -> new IonExoChestplateItem(props.durability(3000)
+        .humanoidArmor(ModArmorMaterials.ION_EXO, net.minecraft.world.item.equipment.ArmorType.CHESTPLATE)
+        .component(net.minecraft.core.component.DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true)
+        .component(net.minecraft.core.component.DataComponents.GLIDER, net.minecraft.util.Unit.INSTANCE)));
 
     private static Item registerItem(String name, Function<Item.Properties, Item> itemFactory) {
         Identifier id = Identifier.fromNamespaceAndPath(Redos.MOD_ID, name);
@@ -42,6 +47,8 @@ public class ModItems {
             entries.accept(ModBlocks.QUANTUM_PORTER);
             entries.accept(ModBlocks.IO_TAG);
             entries.accept(DRONE_UNIT);
+            entries.accept(ION_EXO_CHESTPLATE);
+            entries.accept(WARDEN_CORE);
         });
     }
 }

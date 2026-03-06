@@ -2,6 +2,8 @@
   "item.redos.handheld_device": "RED-OS Handheld Device",
   "item.redos.plasma_pulse_disintegrator": "RED-OS Plasma Pulse Disintegrator",
   "item.redos.drone_unit": "RED-OS Drone Unit",
+  "item.redos.warden_core": "Warden Core",
+  "item.redos.ion_exo_chestplate": "RED-OS Ion-Exo Chestplate",
   "item.redos.wireless_ip_camera": "RED-OS IP Camera",
   "item.redos.smart_motion_sensor": "RED-OS Motion Sensor",
   "item.redos.short_range_transmitter": "RED-OS SR Transmitter",
@@ -25,5 +27,6 @@
   "advancements.redos.unlock_tech.title": "RED-OS Core Initialized",
   "advancements.redos.unlock_tech.description": "You have mastered time and energy. The RED-OS firmware is now active.",
   "advancements.redos.hightech.title": "Protocol 02: Discovery",
-  "advancements.redos.hightech.description": "The power of the stars is now in your hands."
+  "advancements.redos.hightech.description": "The power of the stars is now in your hands.",
+  "key.redos.open_handheld": "Hotkey RED-OS Handheld"
 }

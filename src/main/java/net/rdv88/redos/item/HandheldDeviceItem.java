@@ -10,6 +10,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
@@ -126,5 +127,109 @@ public class HandheldDeviceItem extends Item {
         CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         tag.remove("initialized");
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    public static String getSerial(ItemStack stack) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        String serial = tag.getString("serial").orElse("");
+        if (serial.isEmpty()) {
+            serial = "HW-" + (100000 + new java.util.Random().nextInt(900000));
+            tag.put("serial", net.minecraft.nbt.StringTag.valueOf(serial));
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        }
+        return serial;
+    }
+
+    public static String getLastApp(ItemStack stack) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        return tag.getString("lastApp").orElse("HOME");
+    }
+
+    public static void setLastApp(ItemStack stack, String app) {
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.put("lastApp", net.minecraft.nbt.StringTag.valueOf(app));
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    public static ItemStack findHandheldBySerial(Player player, String serial) {
+        if (player == null || serial.isEmpty()) return ItemStack.EMPTY;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.getItem() instanceof HandheldDeviceItem && getSerial(stack).equals(serial)) return stack;
+        }
+        if (hasEnderChest(player)) {
+            for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
+                ItemStack stack = player.getEnderChestInventory().getItem(i);
+                if (stack.getItem() instanceof HandheldDeviceItem && getSerial(stack).equals(serial)) return stack;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    public static ItemStack findHandheldWithAccess(Player player, String networkId) {
+        if (player == null || networkId == null) return ItemStack.EMPTY;
+        ItemStack firstFound = ItemStack.EMPTY;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack s = findRecursive(player.getInventory().getItem(i));
+            if (s.isEmpty()) continue;
+            if (firstFound.isEmpty()) firstFound = s;
+            if (java.util.Arrays.asList(getNetworkId(s).split(",")).contains(networkId)) return s;
+        }
+        if (hasEnderChest(player)) {
+            for (int i = 0; i < player.getEnderChestInventory().getContainerSize(); i++) {
+                ItemStack s = findRecursive(player.getEnderChestInventory().getItem(i));
+                if (s.isEmpty()) continue;
+                if (firstFound.isEmpty()) firstFound = s;
+                if (java.util.Arrays.asList(getNetworkId(s).split(",")).contains(networkId)) return s;
+            }
+        }
+        return firstFound;
+    }
+
+    public static ItemStack findHandheld(Player player) {
+        if (player == null) return ItemStack.EMPTY;
+        ItemStack handheld = searchInContainer(player.getInventory());
+        if (!handheld.isEmpty()) return handheld;
+        if (hasEnderChest(player)) return searchInContainer(player.getEnderChestInventory());
+        return ItemStack.EMPTY;
+    }
+
+    private static boolean hasEnderChest(Player player) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            if (checkEnderChestRecursive(player.getInventory().getItem(i))) return true;
+        }
+        return false;
+    }
+
+    private static boolean checkEnderChestRecursive(ItemStack s) {
+        if (s.is(net.minecraft.world.item.Items.ENDER_CHEST)) return true;
+        ItemContainerContents c = s.get(DataComponents.CONTAINER);
+        if (c != null) {
+            for (ItemStack n : c.nonEmptyItems()) {
+                if (checkEnderChestRecursive(n)) return true;
+            }
+        }
+        return false;
+    }
+
+    private static ItemStack searchInContainer(net.minecraft.world.Container container) {
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            ItemStack found = findRecursive(container.getItem(i));
+            if (!found.isEmpty()) return found;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static ItemStack findRecursive(ItemStack stack) {
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        if (stack.getItem() instanceof HandheldDeviceItem) return stack;
+        ItemContainerContents contents = stack.get(DataComponents.CONTAINER);
+        if (contents != null) {
+            for (ItemStack nested : contents.nonEmptyItems()) {
+                ItemStack found = findRecursive(nested);
+                if (!found.isEmpty()) return found;
+            }
+        }
+        return ItemStack.EMPTY;
     }
 }

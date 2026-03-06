@@ -56,7 +56,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
         // AUTO-PING: Request visible devices for this hub's network immediately
         DroneStationBlockEntity be = (DroneStationBlockEntity) minecraft.level.getBlockEntity(this.menu.getPos());
         if (be != null) {
-            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(be.getNetworkId()));
+            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(be.getNetworkId(), "STATION-" + be.getBlockPos().toShortString()));
         }
         
         ClientPlayNetworking.send(new RequestSyncDroneTasksPayload(this.menu.getPos()));
@@ -321,7 +321,7 @@ public class DroneStationScreen extends AbstractContainerScreen<DroneStationScre
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean isSecondary) { return super.mouseClicked(translateEvent(event), isSecondary); }
     @Override public boolean mouseReleased(MouseButtonEvent event) { return super.mouseReleased(translateEvent(event)); }
     @Override public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) { return super.mouseDragged(translateEvent(event), deltaX / currentScale, deltaY / currentScale); }
-    @Override public void onClose() { ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload("STOP_TRACKING")); super.onClose(); }
+    @Override public void onClose() { ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload("STOP_TRACKING", "")); super.onClose(); }
 
     private class LedToggleButton extends Button {
         private final boolean enabled;

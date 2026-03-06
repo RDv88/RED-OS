@@ -37,6 +37,7 @@ public class RedosClient implements ClientModInitializer {
     public static boolean isVersionReceived() { return serverVersionReceived; }
     public static void setServerVersion(String ver) { lastServerVersion = ver; }
     public static String getLastServerVersion() { return lastServerVersion; }
+    private static boolean clientWasSupersonic = false;
 
     private void handleVersionMismatch(String serverVer, String clientVer, Minecraft client) {
         if (!clientVer.equalsIgnoreCase(serverVer)) {
@@ -52,6 +53,8 @@ public class RedosClient implements ClientModInitializer {
 
     private static net.minecraft.client.KeyMapping handheldKey;
 
+    private static boolean isJetpackSoundPlaying = false;
+
     @Override
     public void onInitializeClient() {
         handheldKey = net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper.registerKeyBinding(new net.minecraft.client.KeyMapping(
@@ -61,14 +64,19 @@ public class RedosClient implements ClientModInitializer {
         ));
 
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player != null && client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).getItem() == net.rdv88.redos.item.ModItems.ION_EXO_CHESTPLATE) {
+                if (client.options.keyJump.isDown() && client.options.keyUp.isDown() && client.player.isFallFlying()) {
+                    ClientPlayNetworking.send(new net.rdv88.redos.network.payload.JetpackActionPayload(true, true));
+                    // ULTIMATE BLAST FURNACE ENGINE (Registry Based)
+                    if (client.player.level().getGameTime() % 2 == 0) {
+                        net.minecraft.sounds.SoundEvent blastSound = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "block.blast_furnace.fire_ambient")).map(net.minecraft.core.Holder::value).orElse(null);
+                        if (blastSound != null) client.player.playSound(blastSound, 2.0f, 1.5f);
+                    }
+                }
+            }
             while (handheldKey.consumeClick()) {
                 if (client.player != null) {
-                    net.minecraft.world.item.ItemStack handheld = findHandheld(client.player);
-                    if (!handheld.isEmpty()) {
-                        net.rdv88.redos.client.ClientUtil.openHandheldScreen(handheld, client.player);
-                    } else {
-                        client.player.displayClientMessage(Component.literal("§c[RED-OS] §7Handheld not found in inventory."), true);
-                    }
+                    ClientPlayNetworking.send(new net.rdv88.redos.network.payload.RequestHandheldOpenPayload());
                 }
             }
         });
@@ -130,7 +138,7 @@ public class RedosClient implements ClientModInitializer {
         
         ClientPlayNetworking.registerGlobalReceiver(SyncHandheldDataPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
-                HandheldScreen.updateDeviceList(payload.devices());
+                HandheldScreen.updateDeviceList(payload.devices(), payload.serial());
                 CameraViewScreen.setDeviceCache(payload.devices());
                 net.rdv88.redos.client.gui.screen.QuantumPorterScreen.setDeviceCache(payload.devices());
             });
@@ -139,6 +147,12 @@ public class RedosClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(PorterGuiResponsePayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 Minecraft.getInstance().setScreen(new net.rdv88.redos.client.gui.screen.QuantumPorterScreen(payload.pos(), payload.name(), payload.status()));
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(net.rdv88.redos.network.payload.HandheldOpenResponsePayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                if (!payload.stack().isEmpty()) net.rdv88.redos.client.ClientUtil.openHandheldScreen(payload.stack(), context.player());
             });
         });
 
@@ -195,29 +209,4 @@ public class RedosClient implements ClientModInitializer {
         });
     }
 
-    private net.minecraft.world.item.ItemStack findHandheld(net.minecraft.world.entity.player.Player player) {
-        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
-        // 1. Check all slots in main inventory
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            net.minecraft.world.item.ItemStack stack = inv.getItem(i);
-            if (stack.getItem() instanceof net.rdv88.redos.item.HandheldDeviceItem) return stack;
-            // Recursively check containers (Shulkers, Bundles, etc)
-            net.minecraft.world.item.ItemStack nested = searchInside(stack);
-            if (!nested.isEmpty()) return nested;
-        }
-        return net.minecraft.world.item.ItemStack.EMPTY;
-    }
-
-    private net.minecraft.world.item.ItemStack searchInside(net.minecraft.world.item.ItemStack container) {
-        if (container.isEmpty()) return net.minecraft.world.item.ItemStack.EMPTY;
-        
-        // Use Minecraft's Container component API (1.21.11 compatible)
-        net.minecraft.world.item.component.ItemContainerContents contents = container.get(net.minecraft.core.component.DataComponents.CONTAINER);
-        if (contents != null) {
-            for (net.minecraft.world.item.ItemStack stack : contents.nonEmptyItems()) {
-                if (stack.getItem() instanceof net.rdv88.redos.item.HandheldDeviceItem) return stack;
-            }
-        }
-        return net.minecraft.world.item.ItemStack.EMPTY;
-    }
 }

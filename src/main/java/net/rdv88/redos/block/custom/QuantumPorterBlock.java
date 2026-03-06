@@ -82,6 +82,16 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
     }
 
     @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide() && player.isCreative() && state.getValue(HALF) == DoubleBlockHalf.UPPER) {
+            BlockPos bPos = pos.below();
+            BlockState bState = level.getBlockState(bPos);
+            if (bState.is(this) && bState.getValue(HALF) == DoubleBlockHalf.LOWER) level.setBlock(bPos, Blocks.AIR.defaultBlockState(), 35);
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
         if (!level.isClientSide()) {
             DoubleBlockHalf half = state.getValue(HALF);
@@ -92,7 +102,8 @@ public class QuantumPorterBlock extends HorizontalDirectionalBlock implements En
             BlockPos otherPos = (half == DoubleBlockHalf.LOWER) ? pos.above() : pos.below();
             BlockState otherState = level.getBlockState(otherPos);
             if (otherState.is(this) && otherState.getValue(HALF) != half) {
-                level.setBlock(otherPos, Blocks.AIR.defaultBlockState(), 35);
+                if (half == DoubleBlockHalf.UPPER) level.destroyBlock(otherPos, true);
+                else level.setBlock(otherPos, Blocks.AIR.defaultBlockState(), 35);
             }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, moved);

@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "N": "minecraft:netherite_ingot",
+    "E": "minecraft:elytra",
+    "C": "minecraft:netherite_chestplate",
+    "B": "minecraft:beacon",
+    "X": "redos:warden_core"
+  },
+  "pattern": [
+    "NEN",
+    "NCN",
+    "BXB"
+  ],
+  "result": {
+    "count": 1,
+    "id": "redos:ion_exo_chestplate"
+  }
+}

@@ -33,6 +33,7 @@ public class TechNetwork {
     public static final Map<BlockPos, NetworkNode> SERVER_REGISTRY = new HashMap<>();
     private static final Map<BlockPos, NetworkNode> CLIENT_REGISTRY = new HashMap<>();
     private static final Map<UUID, String> ACTIVE_HANDHELD_USERS = new HashMap<>();
+    private static final Map<UUID, String> USER_SERIALS = new HashMap<>();
     private static String CURRENT_WORLD_ID = "default";
     
     private static boolean dbDirty = false;
@@ -317,7 +318,11 @@ public class TechNetwork {
         for (Map.Entry<UUID, String> entry : ACTIVE_HANDHELD_USERS.entrySet()) {
             UUID playerId = entry.getKey(); if ((serverTicks + (playerId.hashCode() & 0xFFFF)) % 10 != 0) continue;
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-            if (player != null) { var data = calculateVisibleDevices(player, entry.getValue()); net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data)); }
+            if (player != null) { 
+                var data = calculateVisibleDevices(player, entry.getValue()); 
+                String serial = USER_SERIALS.getOrDefault(playerId, "");
+                net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data, serial)); 
+            }
         }
     }
 
@@ -547,8 +552,8 @@ public class TechNetwork {
             }
         }
     }
-    public static void startTrackingHandheld(ServerPlayer player, String networkIds) { ACTIVE_HANDHELD_USERS.put(player.getUUID(), networkIds); }
-    public static void stopTrackingHandheld(ServerPlayer player) { ACTIVE_HANDHELD_USERS.remove(player.getUUID()); }
+    public static void startTrackingHandheld(ServerPlayer player, String networkIds, String serial) { ACTIVE_HANDHELD_USERS.put(player.getUUID(), networkIds); USER_SERIALS.put(player.getUUID(), serial); }
+    public static void stopTrackingHandheld(ServerPlayer player) { ACTIVE_HANDHELD_USERS.remove(player.getUUID()); USER_SERIALS.remove(player.getUUID()); }
     public static void syncToPlayer(ServerPlayer player) { List<SyncNetworkNodesPayload.NodeData> data = new ArrayList<>(); for (NetworkNode node : SERVER_REGISTRY.values()) data.add(new net.rdv88.redos.network.payload.SyncNetworkNodesPayload.NodeData(node.pos, node.networkId, node.customName, node.type.name(), node.dimension)); net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new SyncNetworkNodesPayload(data)); }
     public static void clientSync(List<net.rdv88.redos.network.payload.SyncNetworkNodesPayload.NodeData> nodes) { CLIENT_REGISTRY.clear(); for (net.rdv88.redos.network.payload.SyncNetworkNodesPayload.NodeData data : nodes) CLIENT_REGISTRY.put(data.pos(), new NetworkNode(data.pos(), data.id(), data.name(), NodeType.valueOf(data.type()), data.dim(), "client", "client")); }
     public static void syncToAll(Level level) { if (level == null || level.isClientSide() || level.getServer() == null) return; List<SyncNetworkNodesPayload.NodeData> data = new ArrayList<>(); for (NetworkNode node : SERVER_REGISTRY.values()) data.add(new net.rdv88.redos.network.payload.SyncNetworkNodesPayload.NodeData(node.pos, node.networkId, node.customName, node.type.name(), node.dimension)); for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new net.rdv88.redos.network.payload.SyncNetworkNodesPayload(data)); }

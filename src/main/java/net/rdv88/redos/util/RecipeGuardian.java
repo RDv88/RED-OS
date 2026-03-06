@@ -24,7 +24,7 @@ public class RecipeGuardian {
         ));
         GUARDIAN_MAP.put("hightech", List.of(
             "plasma_pulse_disintegrator", "quantum_porter", 
-            "drone_station", "io_tag", "drone_unit"
+            "drone_station", "io_tag", "drone_unit", "ion_exo_chestplate"
         ));
     }
 

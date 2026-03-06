@@ -10,7 +10,8 @@
     "DisconnectedScreenMixin",
     "ClientHandshakePacketListenerImplMixin",
     "MinecraftClientMixin",
-    "ChatComponentMixin"
+    "ChatComponentMixin",
+    "EquipmentLayerRendererMixin"
   ],
   "mixins": [
     "ContainerChangeMixin",

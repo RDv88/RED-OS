@@ -9,11 +9,12 @@ import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
-public record SyncHandheldDataPayload(List<DeviceEntry> devices) implements CustomPacketPayload {
+public record SyncHandheldDataPayload(List<DeviceEntry> devices, String serial) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<SyncHandheldDataPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("redos", "sync_handheld_data"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, SyncHandheldDataPayload> CODEC = StreamCodec.composite(
             DeviceEntry.CODEC.apply(ByteBufCodecs.list()), SyncHandheldDataPayload::devices,
+            ByteBufCodecs.STRING_UTF8, SyncHandheldDataPayload::serial,
             SyncHandheldDataPayload::new
     );
 

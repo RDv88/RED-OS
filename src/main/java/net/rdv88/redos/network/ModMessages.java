@@ -119,6 +119,9 @@ public class ModMessages {
         PayloadTypeRegistry.playC2S().register(ConfigureSensorSettingsPayload.ID, ConfigureSensorSettingsPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ConfigureIOTagSettingsPayload.ID, ConfigureIOTagSettingsPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PurgeZombieDronesPayload.ID, PurgeZombieDronesPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(JetpackActionPayload.ID, JetpackActionPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(RequestHandheldOpenPayload.ID, RequestHandheldOpenPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(HandheldOpenResponsePayload.ID, HandheldOpenResponsePayload.CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(PurgeZombieDronesPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
@@ -132,6 +135,12 @@ public class ModMessages {
                 );
                 for (net.rdv88.redos.entity.DroneEntity zombie : zombies) zombie.discard();
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6[SYSTEM] §7Purged " + zombies.size() + " orphan drone(s)."), true);
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JetpackActionPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                net.rdv88.redos.util.JetpackHandler.setBoosting(context.player().getUUID(), payload.forward());
             });
         });
 
@@ -445,8 +454,8 @@ public class ModMessages {
                 if (payload.newId().equals("STOP_TRACKING")) {
                     TechNetwork.stopTrackingHandheld(player);
                 } else {
-                    // FIND HANDHELD: Use the new helper to find the device anywhere in inventory (Shulkers, etc)
-                    ItemStack stack = findHandheldInInventory(player);
+                    // FIND HANDHELD: Use the hardware serial to find the CORRECT device
+                    ItemStack stack = HandheldDeviceItem.findHandheldBySerial(player, payload.serial());
                     
                     if (!stack.isEmpty()) {
                         String nwid = payload.newId();
@@ -457,9 +466,9 @@ public class ModMessages {
                             HandheldDeviceItem.setNetworkId(stack, nwid);
                         }
                         
-                        TechNetwork.startTrackingHandheld(player, nwid);
+                        TechNetwork.startTrackingHandheld(player, nwid, payload.serial());
                         var data = TechNetwork.calculateVisibleDevices(player, nwid);
-                        ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data));
+                        ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data, payload.serial()));
                     }
                 }
             });
@@ -523,7 +532,8 @@ public class ModMessages {
                     if (!(handheld.getItem() instanceof HandheldDeviceItem)) handheld = player.getOffhandItem();
                     String ids = HandheldDeviceItem.getNetworkId(handheld);
                     var data = TechNetwork.calculateVisibleDevices(player, ids);
-                    ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data));
+                    String hSerial = HandheldDeviceItem.getSerial(handheld);
+                    ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data, hSerial));
                     ServerPlayNetworking.send(player, new ActionFeedbackPayload("§aUpdated " + deviceLabel, false));
                 }
             });
@@ -539,16 +549,11 @@ public class ModMessages {
                 net.minecraft.world.level.block.entity.BlockEntity be = player.level().getBlockEntity(basePos);
                 if (!(be instanceof QuantumPorterBlockEntity porter)) return;
 
-                ItemStack handheld = null;
-                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-                    ItemStack s = player.getInventory().getItem(i);
-                    if (s.getItem() instanceof HandheldDeviceItem) { handheld = s; break; }
-                }
-
+                ItemStack handheld = HandheldDeviceItem.findHandheldWithAccess(player, porter.getNetworkId());
                 int status = 0; 
                 String handheldIds = "";
                 
-                if (handheld == null) {
+                if (handheld.isEmpty()) {
                     status = 2; 
                 } else {
                     handheldIds = HandheldDeviceItem.getNetworkId(handheld);
@@ -560,9 +565,10 @@ public class ModMessages {
                 }
 
                 if (status == 0) {
-                    TechNetwork.startTrackingHandheld(player, handheldIds);
+                    String serial = HandheldDeviceItem.getSerial(handheld);
+                    TechNetwork.startTrackingHandheld(player, handheldIds, serial);
                     var data = TechNetwork.calculateVisibleDevices(player, handheldIds);
-                    ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data));
+                    ServerPlayNetworking.send(player, new SyncHandheldDataPayload(data, serial));
                 }
 
                 ServerPlayNetworking.send(player, new PorterGuiResponsePayload(basePos, porter.getName(), status));
@@ -694,6 +700,17 @@ public class ModMessages {
                 net.rdv88.redos.util.LogisticsEngine.forceHubReset((ServerLevel)context.player().level(), payload.hubPos());
             });
         });
+
+        ServerPlayNetworking.registerGlobalReceiver(RequestHandheldOpenPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ItemStack h = HandheldDeviceItem.findHandheld(context.player());
+                if (!h.isEmpty()) {
+                    ServerPlayNetworking.send(context.player(), new HandheldOpenResponsePayload(h));
+                } else {
+                    context.player().displayClientMessage(net.minecraft.network.chat.Component.literal("§c[RED-OS] §7Handheld not found in inventory."), true);
+                }
+            });
+        });
     }
 
         public static void broadcastChatSync(net.minecraft.server.MinecraftServer server) {
@@ -711,18 +728,7 @@ public class ModMessages {
         }
 
     private static ItemStack findHandheldInInventory(ServerPlayer player) {
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack s = inv.getItem(i);
-            if (s.getItem() instanceof HandheldDeviceItem) return s;
-            var contents = s.get(net.minecraft.core.component.DataComponents.CONTAINER);
-            if (contents != null) {
-                for (ItemStack nested : contents.nonEmptyItems()) {
-                    if (nested.getItem() instanceof HandheldDeviceItem) return nested;
-                }
-            }
-        }
-        return ItemStack.EMPTY;
+        return HandheldDeviceItem.findHandheld(player);
     }
 }
     

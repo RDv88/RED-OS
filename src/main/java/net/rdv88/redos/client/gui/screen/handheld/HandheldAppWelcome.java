@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import net.rdv88.redos.client.gui.screen.HandheldScreen;
 import net.rdv88.redos.item.HandheldDeviceItem;
 import java.util.Optional;
@@ -23,9 +24,12 @@ public class HandheldAppWelcome implements HandheldApp {
         int btnY = sy + h - 16;
         
         adder.add(new HandheldScreen.NavButton(screenCX - 50, btnY, 100, 14, "ACKNOWLEDGE", b -> {
-            HandheldDeviceItem.setInitialized(Minecraft.getInstance().player.getMainHandItem());
-            // Send explicit initialization signal to the server to save state permanently
-            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload("INITIALIZE"));
+            ItemStack handheld = HandheldDeviceItem.findHandheld(Minecraft.getInstance().player);
+            if (!handheld.isEmpty()) {
+                HandheldDeviceItem.setInitialized(handheld);
+                String serial = HandheldDeviceItem.getSerial(handheld);
+                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload("INITIALIZE", serial));
+            }
             HandheldScreen.requestAppSwitch("HOME");
         }, 0xFF00AA22));
     }

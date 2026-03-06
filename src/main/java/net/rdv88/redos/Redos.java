@@ -78,6 +78,7 @@ public class Redos implements ModInitializer {
         net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(net.rdv88.redos.entity.ModEntities.WATCHER, net.rdv88.redos.entity.WatcherEntity.createAttributes());
         net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(net.rdv88.redos.entity.ModEntities.DRONE, net.rdv88.redos.entity.DroneEntity.createAttributes());
         ModMessages.registerNetworking();
+        net.rdv88.redos.util.ModLootModifiers.registerLoot();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(Commands.literal("redos")
@@ -100,6 +101,9 @@ public class Redos implements ModInitializer {
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> true);
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                net.rdv88.redos.util.JetpackHandler.tick(player);
+            }
             CameraViewHandler.tick(server);
             TechNetwork.tickLiveUpdates(server);
             net.rdv88.redos.util.ChatManager.tick();

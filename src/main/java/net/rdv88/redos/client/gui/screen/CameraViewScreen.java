@@ -31,7 +31,6 @@ public class CameraViewScreen extends Screen {
     public CameraViewScreen(String cameraName) {
         super(Component.literal("Camera View"));
         this.currentCameraName = cameraName;
-        HandheldScreen.setSavedApp("CAMERA");
     }
 
     public static void setDeviceCache(List<SyncHandheldDataPayload.DeviceEntry> devices) {

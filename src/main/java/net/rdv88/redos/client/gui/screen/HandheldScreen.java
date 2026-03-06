@@ -34,7 +34,6 @@ public class HandheldScreen extends Screen {
 
     private HandheldApp currentApp;
     private String currentAppName = "HOME";
-    private static String savedAppName = "HOME";
 
     private String toastMessage = null;
     private int toastTimer = 0;
@@ -46,7 +45,6 @@ public class HandheldScreen extends Screen {
     private static final int SCREEN_WIDTH = 230;
     private static final int SCREEN_HEIGHT = 170;
 
-    public static void setSavedApp(String name) { savedAppName = name; }
     public String getCurrentAppName() { return currentAppName; }
 
     public HandheldScreen(ItemStack stack, Player player) {
@@ -58,13 +56,13 @@ public class HandheldScreen extends Screen {
         currentInstance = this;
         
         // CHECK INITIALIZATION: If new device, force Welcome Screen
-        if (!net.rdv88.redos.item.HandheldDeviceItem.isInitialized(stack)) {
+        if (!HandheldDeviceItem.isInitialized(stack)) {
             this.currentAppName = "WELCOME";
         } else {
-            this.currentAppName = savedAppName;
+            this.currentAppName = HandheldDeviceItem.getLastApp(stack);
         }
         
-        ClientPlayNetworking.send(new ConfigureHandheldPayload(HandheldDeviceItem.getNetworkId(stack)));
+        ClientPlayNetworking.send(new ConfigureHandheldPayload(HandheldDeviceItem.getNetworkId(stack), HandheldDeviceItem.getSerial(stack)));
     }
 
     public static void requestAppSwitch(String appName) {
@@ -101,13 +99,18 @@ public class HandheldScreen extends Screen {
         if (currentInstance != null) {
             String raw = String.join(",", currentInstance.activeIds);
             net.rdv88.redos.item.HandheldDeviceItem.setNetworkId(currentInstance.stack, raw);
-            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(raw));
+            String serial = HandheldDeviceItem.getSerial(currentInstance.stack);
+            ClientPlayNetworking.send(new net.rdv88.redos.network.payload.ConfigureHandheldPayload(raw, serial));
         }
     }
 
     public static void setSelectedDeviceName(String name) { selectedDeviceName = name; }
 
-    public static void updateDeviceList(List<SyncHandheldDataPayload.DeviceEntry> list) {
+    public static void updateDeviceList(List<SyncHandheldDataPayload.DeviceEntry> list, String serial) {
+        if (currentInstance != null) {
+            String mySerial = HandheldDeviceItem.getSerial(currentInstance.stack);
+            if (!mySerial.equals(serial)) return;
+        }
         BlockPos playerPos = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.blockPosition() : BlockPos.ZERO;
         list.sort(Comparator.comparingDouble(d -> d.pos().distSqr(playerPos)));
         
@@ -150,10 +153,11 @@ public class HandheldScreen extends Screen {
 
         // PERSISTENT APPS: Only the WELCOME screen needs to keep state for animations
         if (currentAppName.equals("WELCOME")) {
-            if (this.currentApp == null || !savedAppName.equals("WELCOME")) {
+            if (this.currentApp == null) {
                 this.currentApp = new net.rdv88.redos.client.gui.screen.handheld.HandheldAppWelcome();
             }
         } else {
+            HandheldDeviceItem.setLastApp(stack, currentAppName);
             this.currentApp = switch (currentAppName) {
                 case "NETWORK" -> new HandheldAppNWID(savedProfiles, activeIds);
                 case "TRANSMITTERS" -> new HandheldAppTransmittor(VISIBLE_DEVICES);
@@ -169,7 +173,6 @@ public class HandheldScreen extends Screen {
                 default -> new HandheldAppHome();
             };
         }
-        savedAppName = currentAppName;
 
         this.currentApp.init(screenX, screenY, SCREEN_WIDTH, SCREEN_HEIGHT, new HandheldApp.WidgetAdder() {
             @Override
@@ -383,8 +386,8 @@ public class HandheldScreen extends Screen {
 
     @Override
     public void onClose() {
-        ClientPlayNetworking.send(new ConfigureHandheldPayload("STOP_TRACKING"));
-        savedAppName = currentAppName;
+        ClientPlayNetworking.send(new ConfigureHandheldPayload("STOP_TRACKING", ""));
+        if (!currentAppName.equals("WELCOME")) HandheldDeviceItem.setLastApp(stack, currentAppName);
         currentInstance = null;
         super.onClose();
     }

@@ -60,7 +60,8 @@
       "redos:quantum_porter",
       "redos:drone_station",
       "redos:io_tag",
-      "redos:drone_unit"
+      "redos:drone_unit",
+      "redos:ion_exo_chestplate"
     ]
   }
 }
