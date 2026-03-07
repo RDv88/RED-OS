@@ -12,28 +12,30 @@ RED-OS is a comprehensive technological suite for Minecraft, designed to automat
 
 ## 🚀 Key Features
 
-**Centralized Handheld OS**:
-Take absolute control with the Handheld Device. This powerful multi-app tablet serves as the primary interface for your infrastructure, allowing you to
-configure hardware, monitor fleet status, and manage security protocols from the palm of your hand.
+**Global Communication Suite:**
+The ultimate command center for player interaction. Features a high-performance Global Chat, an Encrypted Private Messenger Vault for secure player-to-player
+communication with persistent local history, and a seamless Discord Bridge to connect your in-game world with your external community in real-time. Coordinate logistics
+and stay connected with your team anywhere in the world.
 
-**Global Communication Suite**:
-The ultimate command center for player interaction. Features a high-performance Global Chat, an encrypted Private Messenger Vault for persistent local history,
-and a seamless Discord Bridge to connect your in-game world with your external community in real-time.
 
-**Autonomous Drone Logistics**:
-Deploy intelligent Drone Units managed by a centralized Master Controller. These autonomous agents navigate complex Mesh Networks to transport resources with
-high efficiency, featuring built-in survival protocols and intelligent back-pressure detection for full containers.
+**Administrative & Security Operations (OP Level):**
+RED-OS provides streamlined access for authorized world administrators. Players with Operator privileges can access the Admin Console, designed for the convenience of
+monitoring global network health and managing player permissions. This layer provides OPs with an efficient overview to maintain order and security across the
+technological ecosystem without unnecessary complexity.
 
-**Surveillance & Advanced Security**:
-Maintain total situational awareness with high-definition Wireless IP Cameras and Smart Sensors. Monitor your facility through real-time video feeds
-and configure automated alerts for players, entities, or specific network events.
 
-**Quantum Teleportation Infrastructure**:
+**Autonomous Drone Logistics:**
+Deploy intelligent Drone Units managed by a centralized Master Controller. These autonomous agents navigate complex Mesh Networks to transport resources with high
+efficiency, featuring built-in survival protocols and intelligent back-pressure detection for full containers.
+
+
+**Surveillance & Remote Automation:**
+Maintain total situational awareness with high-definition Wireless IP Cameras, Smart Motion Sensors, and Remote Redstone Triggers. Monitor your facility through
+real-time video feeds, configure automated alerts, and remotely activate redstone machinery from anywhere on the network via your handheld.
+
+**Quantum Teleportation Infrastructure:**
 Master the Quantum Porter system for instantaneous long-range logistics and personnel travel. Utilizing advanced spatial mapping, the Porter provides secure,
 zero-latency movement across your entire RED-OS network.
-
-**High-Energy Defense & Mobility**:
-Protect your assets with the Plasma Pulse Disintegrator weapon and master the skies with the Ion Exo Chestplate. This advanced jetpack provides high-speed aerial mobility with built-in glider functionality and supersonic capabilities.
 
 
 ## 🛰 How it Works: Discovery & Progression
