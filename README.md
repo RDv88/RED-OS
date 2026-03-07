@@ -32,8 +32,8 @@ and configure automated alerts for players, entities, or specific network events
 Master the Quantum Porter system for instantaneous long-range logistics and personnel travel. Utilizing advanced spatial mapping, the Porter provides secure,
 zero-latency movement across your entire RED-OS network.
 
-**High-Energy Defense**:
-Protect your assets with the Plasma Pulse Disintegrator weapon.
+**High-Energy Defense & Mobility**:
+Protect your assets with the Plasma Pulse Disintegrator weapon and master the skies with the Ion Exo Chestplate. This advanced jetpack provides high-speed aerial mobility with built-in glider functionality and supersonic capabilities.
 
 
 ## 🛰 How it Works: Discovery & Progression
